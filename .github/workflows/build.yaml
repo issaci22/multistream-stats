@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       macos_smoke:
-        description: Run the macOS runtime smoke tests (Apple Silicon and Intel)
+        description: Run the macOS runtime smoke tests (Apple Silicon)
         type: boolean
         default: true
   workflow_call:
@@ -33,8 +33,6 @@ env:
   OBS_WINDOWS_INSTALLER_SHA256: 37ecde4d9a28e8aeeb07623c8469b5d558eb264e02ccf435bb859891c401758b
   OBS_MACOS_APPLE_DMG_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-macOS-Apple.dmg
   OBS_MACOS_APPLE_DMG_SHA256: 3d6b2eedeb56416602af635adaba32327fdf11ff9d2806a4ce7d5b608de73238
-  OBS_MACOS_INTEL_DMG_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-macOS-Intel.dmg
-  OBS_MACOS_INTEL_DMG_SHA256: 745257d65e06eb0f784af229659223a863ad50d036464bb2b52f8a2d9278c2b1
   # OBS Studio 33 for Ubuntu 26.04 from the official OBS PPA. The PPA builds it as plain amd64 only, while the
   # runner's apt reads amd64v3 package indexes and never sees the PPA, so the .deb is installed directly
   # (SHA-256 as published by Launchpad for this file); apt resolves its dependencies from Ubuntu.
@@ -449,7 +447,7 @@ jobs:
 
   # ---------------------------------------------------------------------------------------------
   macos:
-    name: macOS universal - build, unit tests, package
+    name: macOS Apple Silicon - build, unit tests, package
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -465,7 +463,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .deps
-          key: deps-macos-universal-${{ steps.xcode.outputs.version }}-${{ hashFiles('buildspec.json', 'cmake/common/buildspec_common.cmake', 'cmake/macos/buildspec.cmake') }}
+          key: deps-macos-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('buildspec.json', 'cmake/common/buildspec_common.cmake', 'cmake/macos/buildspec.cmake') }}
 
       - name: Configure, build, unit tests
         run: |
@@ -475,12 +473,6 @@ jobs:
           cmake --build --preset macos-ci 2>&1 | tee ci-logs/macos-build.log | grep -E 'warning:|error:|BUILD (SUCCEEDED|FAILED)' || true
           grep -q 'BUILD SUCCEEDED' ci-logs/macos-build.log
           ctest --preset macos-ci 2>&1 | tee ci-logs/macos-unit-tests.log
-          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
-            echo "== unit tests, x86_64 slice (Rosetta)"
-            /usr/bin/arch -x86_64 build_macos/tests/unit/RelWithDebInfo/msd-core-tests 2>&1 | tee ci-logs/macos-unit-tests-x86_64.log
-          else
-            echo "Rosetta not available: x86_64 slice is runtime-tested by the Intel smoke job" | tee ci-logs/macos-unit-tests-x86_64.log
-          fi
 
       - name: Strict build (warnings as errors; report only)
         continue-on-error: true
@@ -536,12 +528,7 @@ jobs:
           - arch: arm64
             runner: macos-26
             dmg: apple
-          - arch: x86_64
-            runner: macos-26-intel
-            dmg: intel
-          - arch: x86_64-macos15
-            runner: macos-15-intel
-            dmg: intel
+
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -557,7 +544,7 @@ jobs:
       - name: Install OBS Studio 33.0.1 (official DMG, digest checked)
         run: |
           set -euo pipefail
-          if [[ "${{ matrix.dmg }}" == apple ]]; then url=$OBS_MACOS_APPLE_DMG_URL; sum=$OBS_MACOS_APPLE_DMG_SHA256; else url=$OBS_MACOS_INTEL_DMG_URL; sum=$OBS_MACOS_INTEL_DMG_SHA256; fi
+          url=$OBS_MACOS_APPLE_DMG_URL; sum=$OBS_MACOS_APPLE_DMG_SHA256
           curl -fsSL -o "$RUNNER_TEMP/obs.dmg" "$url"
           echo "$sum  $RUNNER_TEMP/obs.dmg" | shasum -a 256 -c
           mkdir -p "$RUNNER_TEMP/obs-mnt"
@@ -587,7 +574,7 @@ jobs:
 
           # DMG -> PKG, exactly as a user does it (current-user install, no sudo).
           mkdir -p "$RUNNER_TEMP/dmg"
-          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" pkg/*-macos-universal.dmg
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" pkg/*-macos-arm64.dmg
           ls -la "$RUNNER_TEMP/dmg" | tee results/macos-dmg-contents.txt
           installer -pkg "$RUNNER_TEMP/dmg/Install Multi-Stream Stats.pkg" -target CurrentUserHomeDirectory -verboseR | tee results/macos-installer.log
           test -x "$plugins/obs-multistream-stats.plugin/Contents/MacOS/obs-multistream-stats"
@@ -603,7 +590,7 @@ jobs:
           [[ "$(shasum -a 256 "$state")" == "$before" ]]
 
           # Manual ZIP, as downloaded by a browser (quarantine flag), then the documented steps.
-          zip=$(ls pkg/*-macos-universal-manual.zip)
+          zip=$(ls pkg/*-macos-arm64-manual.zip)
           cp "$zip" "$RUNNER_TEMP/manual.zip"
           xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/manual.zip"
           ditto -x -k "$RUNNER_TEMP/manual.zip" "$RUNNER_TEMP/manual"

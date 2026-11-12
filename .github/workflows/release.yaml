@@ -99,8 +99,8 @@ jobs:
           (cd ci/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
           (cd ci/linux-packages && sha256sum -c SHA256SUMS-linux.txt)
           mkdir release
-          cp ci/macos-packages/"$NAME-$VERSION"-macos-universal.dmg ci/macos-packages/"$NAME-$VERSION"-macos-universal-manual.zip release/
-          cp ci/macos-packages/"$NAME-$VERSION"-macos-universal-dSYMs.zip release/ 2>/dev/null || true
+          cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64.dmg ci/macos-packages/"$NAME-$VERSION"-macos-arm64-manual.zip release/
+          cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64-dSYMs.zip release/ 2>/dev/null || true
           cp ci/linux-packages/"${NAME}_${VERSION}"_ubuntu-26.04_amd64.deb ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-manual.tar.xz \
              ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-debug-symbols.tar.xz release/
           if [[ "$WINDOWS_ASSETS" == from-build-run ]]; then

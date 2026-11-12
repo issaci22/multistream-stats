@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Builds the macOS release assets from a built CMake/Xcode tree (preset macos-ci) and verifies them
 # after packaging:
-#   obs-multistream-stats-<v>-macos-universal.dmg          "Install Multi-Stream Stats.pkg" + Read Me + LICENSE
-#   obs-multistream-stats-<v>-macos-universal-manual.zip   obs-multistream-stats.plugin + INSTALL.txt + LICENSE.txt
-#   obs-multistream-stats-<v>-macos-universal-dSYMs.zip    debug symbols (not for users)
-#   obs-multistream-stats-<v>-macos-universal.pkg          the same installer, for CI tests (not a release asset)
+#   obs-multistream-stats-<v>-macos-arm64.dmg          "Install Multi-Stream Stats.pkg" + Read Me + LICENSE
+#   obs-multistream-stats-<v>-macos-arm64-manual.zip   obs-multistream-stats.plugin + INSTALL.txt + LICENSE.txt
+#   obs-multistream-stats-<v>-macos-arm64-dSYMs.zip    debug symbols (not for users)
+#   obs-multistream-stats-<v>-macos-arm64.pkg          the same installer, for CI tests (not a release asset)
 #   SHA256SUMS-macos.txt, macos-dependency-audit.txt, signing-status.txt
 #
 # Signing is optional and only happens when real credentials are present:
@@ -36,7 +36,7 @@ exe="$bundle/Contents/MacOS/$name"
 plist="$bundle/Contents/Info.plist"
 [[ -d "$bundle" ]] || { echo "::error::missing $bundle"; exit 1; }
 
-base="$name-$version-macos-universal"
+base="$name-$version-macos-arm64"
 pkg_label="Install Multi-Stream Stats.pkg"
 work=$(mktemp -d)
 trap 'hdiutil detach "$work/mnt" -quiet 2>/dev/null || true; rm -rf "$work"' EXIT
@@ -53,20 +53,20 @@ pb() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist"; }
 [[ "$(pb LSMinimumSystemVersion)" == "$min_macos" ]] || fail "LSMinimumSystemVersion != $min_macos"
 for f in manifest.json locale/en-US.ini; do cmp "$root/data/$f" "$bundle/Contents/Resources/$f"; done
 archs=$(lipo -archs "$exe")
-[[ " $archs " == *" arm64 "* && " $archs " == *" x86_64 "* ]] || fail "not universal: $archs"
+[[ "$archs" == "arm64" ]] || fail "expected an Apple Silicon (arm64) only binary, got: $archs"
 if [[ "$bundle_id" == com.example.* ]]; then echo "::warning::placeholder bundle identifier $bundle_id (set platformConfig.macos.bundleId before a release)"; fi
 
 {
   echo "# $name $version - macOS dependency audit ($(sw_vers -productVersion), Xcode $(xcodebuild -version | head -1))"
   echo "## architectures: $archs"
-  for a in arm64 x86_64; do
+  for a in arm64; do
     echo "## $a: minimum OS / SDK"; vtool -arch "$a" -show-build "$exe" | grep -E 'minos|sdk|platform' || true
     echo "## $a: linked libraries"; otool -arch "$a" -L "$exe"
     echo "## $a: LC_RPATH"; otool -arch "$a" -l "$exe" | grep -A2 LC_RPATH | grep path || echo "(none)"
   done
   echo "## code signature"; codesign -dv --verbose=2 "$bundle" 2>&1 || true
 } | tee "$out_dir/macos-dependency-audit.txt"
-for a in arm64 x86_64; do
+for a in arm64; do
   minos=$(vtool -arch "$a" -show-build "$exe" | awk '/minos/ {print $2}')
   [[ "$minos" == "$min_macos" ]] || fail "$a minos $minos != $min_macos"
   # Every non-system dependency must be @rpath-relative (provided by OBS.app), never a build-machine path.

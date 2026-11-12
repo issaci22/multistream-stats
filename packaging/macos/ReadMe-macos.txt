@@ -2,8 +2,7 @@ Multi-Stream Stats {VERSION} for macOS
 ==========================================
 
 Requirements: macOS {MIN_MACOS} or newer, OBS Studio 33 or newer.
-One download for every Mac: the plugin is a universal binary for both
-Apple Silicon (M-series) and Intel Macs.
+For Macs with Apple Silicon (M-series) only. Intel Macs are not supported.
 
 Install
 -------
@@ -34,7 +33,7 @@ Delete that folder as well if you want to remove them.
 
 Manual installation (without the installer)
 -------------------------------------------
-Download obs-multistream-stats-{VERSION}-macos-universal-manual.zip and follow its INSTALL.txt.
+Download obs-multistream-stats-{VERSION}-macos-arm64-manual.zip and follow its INSTALL.txt.
 
 Project page, source code and bug reports:
   {PROJECT_URL}

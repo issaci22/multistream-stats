@@ -5,7 +5,7 @@
      current user's home folder only (no administrator password, no system-wide location). -->
 <installer-gui-script minSpecVersion="1">
     <title>Multi-Stream Stats @VERSION@</title>
-    <options rootVolumeOnly="true" hostArchitectures="arm64,x86_64" customize="never" allow-external-scripts="no"/>
+    <options rootVolumeOnly="true" hostArchitectures="arm64" customize="never" allow-external-scripts="no"/>
     <domains enable_currentUserHome="true" enable_anywhere="false" enable_localSystem="false"/>
     <welcome file="welcome.txt" mime-type="text/plain"/>
     <license file="LICENSE.txt" mime-type="text/plain"/>

@@ -45,8 +45,8 @@
     },
     {
       "name": "macos",
-      "displayName": "macOS Universal (OBS 33.0.1 SDK)",
-      "description": "Plugin + unit tests for macOS 13.0+ (arm64 + x86_64 in one binary)",
+      "displayName": "macOS Apple Silicon (OBS 33.0.1 SDK)",
+      "description": "Plugin + unit tests for macOS 13.0+ on Apple Silicon (arm64)",
       "binaryDir": "${sourceDir}/build_macos",
       "condition": {
         "type": "equals",
@@ -57,7 +57,7 @@
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
-        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
         "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
         "CMAKE_COMPILE_WARNING_AS_ERROR": false,
@@ -68,7 +68,7 @@
     {
       "name": "macos-ci",
       "inherits": ["macos"],
-      "displayName": "macOS Universal CI (plugin + tests + mock-output test plugin)",
+      "displayName": "macOS Apple Silicon CI (plugin + tests + mock-output test plugin)",
       "cacheVariables": {
         "MSD_BUILD_MOCK_PLUGIN": true
       }
@@ -76,7 +76,7 @@
     {
       "name": "macos-ci-strict",
       "inherits": ["macos-ci"],
-      "displayName": "macOS Universal CI, warnings as errors (report only)",
+      "displayName": "macOS Apple Silicon CI, warnings as errors (report only)",
       "binaryDir": "${sourceDir}/build_macos_strict",
       "cacheVariables": {
         "CMAKE_COMPILE_WARNING_AS_ERROR": true
