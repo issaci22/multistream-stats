@@ -1,0 +1,12 @@
+{
+  "_comment": "Windows payloads that were tested end to end before release. tools/package-windows.ps1 refuses to package a listed version whose files differ, and refuses unlisted payloads unless -AllowUnpinned is given (CI pipeline checks, never released).",
+  "1.1.0": {
+    "tested": "Public 1.1.0 build, 2026-11-12: MSVC 14.51, OBS 33.0.1 / Qt 6.11.1, linked with /PDBALTPATH so the DLL names only its PDB file, not the build folder. Full isolated regression and the Windows installer suite passed with exactly these files.",
+    "relationship": "Same source, compiler and data files as the 1.1.0 DLL that was verified in real use with OBS 33.0.1 and Aitum Multistream (SHA-256 0bc2d22026f7d4c674ca4a2b738b17d73d6a170c90f4b774db92bf1d428b2a07). The two DLLs differ only in the debug-path record and, because that record is shorter, in addresses of read-only data that moved by 0x48/0x50 bytes; code, imports, exports and resources are otherwise identical.",
+    "files": {
+      "obs-multistream-stats.dll": "a4db862a5a334c248f3e9f42cb10d90708956faaafcb26a2d0dd5c8e680c60da",
+      "data/manifest.json": "8044f6cb81752d7eb82f6d2a2962e06578bac7a310d690719560b8f54312a42b",
+      "data/locale/en-US.ini": "4f87cf80c3f95a8ca7d1c03ae9b6de4d6c46b26e1768df1ed424f7d795691708"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+Multi-Stream Stats {VERSION} for Windows (x64) - manual installation
+=========================================================================
+
+Requirements: OBS Studio 33 or newer, 64-bit (x64) version for Windows 10 or 11.
+Close OBS Studio before you start.
+
+The easier way is the installer (obs-multistream-stats-{VERSION}-windows-x64-installer.exe),
+which finds your OBS Studio for you. Use this ZIP if you prefer to copy the files yourself.
+
+What is in this ZIP
+-------------------
+  obs-multistream-stats\              <- the plugin folder: copy this whole folder
+    obs-multistream-stats.dll
+    data\manifest.json
+    data\locale\en-US.ini
+  INSTALL.txt                         <- this file
+  LICENSE.txt                         <- GNU General Public License, version 2
+
+Where to copy the "obs-multistream-stats" folder
+------------------------------------------------
+A) Standard OBS Studio (installed with the OBS installer, or from Steam):
+
+     C:\ProgramData\obs-studio\plugins\
+
+   Afterwards this file must exist:
+     C:\ProgramData\obs-studio\plugins\obs-multistream-stats\obs-multistream-stats.dll
+
+   ProgramData is a hidden folder: type C:\ProgramData\obs-studio into the
+   Explorer address bar. Create the "plugins" folder if it does not exist.
+   Windows asks for administrator permission when you copy into it.
+
+B) Portable OBS Studio (the OBS ZIP download: a folder with bin, data and config,
+   and a portable_mode.txt or obs_portable_mode.txt file in it):
+
+     <your OBS folder>\plugins\
+
+   Afterwards this file must exist:
+     <your OBS folder>\plugins\obs-multistream-stats\obs-multistream-stats.dll
+
+   Create the "plugins" folder if it does not exist.
+
+Do not copy the plugin into "obs-plugins\64bit". That is the old (legacy) plugin
+location; OBS marks plugins there as Legacy and will stop loading them.
+
+Check that it works
+-------------------
+1. Start OBS Studio.
+2. Open Docks > Multi-Stream Statistics.
+3. Tools > Plugin Manager lists "Multi-Stream Statistics".
+4. Help > Log Files > View Current Log contains the line
+     [multistream-stats] loaded version {VERSION}
+
+If the dock is missing, see "Troubleshooting" in INSTALL.md on the project page.
+
+Upgrading
+---------
+Close OBS. Delete the old obs-multistream-stats folder from the plugins folder
+(including an old obs-multistream-stats.pdb, if there is one), then copy the new
+folder. The dock's settings are stored elsewhere and are kept.
+
+Uninstalling
+------------
+Close OBS and delete the obs-multistream-stats folder from the plugins folder.
+
+The dock keeps a small settings file (which sections are collapsed) in:
+  standard OBS:  %APPDATA%\obs-studio\plugin_config\obs-multistream-stats\
+  portable OBS:  <your OBS folder>\config\obs-studio\plugin_config\obs-multistream-stats\
+Delete that folder as well if you want to remove those settings.
+
+Project page, full instructions, source code and bug reports:
+  {PROJECT_URL}

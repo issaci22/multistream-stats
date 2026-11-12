@@ -1,0 +1,44 @@
+Multi-Stream Stats {VERSION} for macOS - manual installation
+=================================================================
+
+Requirements: macOS {MIN_MACOS} or newer, OBS Studio 33 or newer.
+obs-multistream-stats.plugin is a universal binary: the same file works on
+Apple Silicon (M-series) and Intel Macs.
+
+The easier way is the installer in obs-multistream-stats-{VERSION}-macos-universal.dmg.
+
+Install
+-------
+1. Quit OBS Studio.
+2. In Finder choose Go > Go to Folder... and paste:
+     ~/Library/Application Support/obs-studio/plugins
+   If the "plugins" folder does not exist, open ~/Library/Application Support/obs-studio
+   instead and create a folder named "plugins" in it.
+3. Copy obs-multistream-stats.plugin into that plugins folder. If an older
+   obs-multistream-stats.plugin is already there, replace it.
+{SIGNING_NOTE}
+4. Start OBS Studio and open Docks > Multi-Stream Statistics.
+
+Do not use /Library/Application Support/obs-studio/plugins (without the ~): OBS 33
+treats that folder as a legacy location and does not load this plugin from it on
+Apple Silicon Macs.
+
+Custom location (advanced): OBS also loads plugins from the folder named by the
+OBS_PLUGINS_PATH environment variable, but only when OBS is started from Terminal:
+  OBS_PLUGINS_PATH=/path/to/folder /Applications/OBS.app/Contents/MacOS/OBS
+with /path/to/folder/obs-multistream-stats.plugin.
+
+Check that it works
+-------------------
+- Tools > Plugin Manager lists "Multi-Stream Statistics".
+- Help > Log Files > View Current Log contains
+    [multistream-stats] loaded version {VERSION}
+
+Uninstall
+---------
+Quit OBS Studio and move obs-multistream-stats.plugin from
+~/Library/Application Support/obs-studio/plugins to the Trash.
+The dock's settings are in ~/Library/Application Support/obs-studio/plugin_config/obs-multistream-stats/.
+
+Project page, source code and bug reports:
+  {PROJECT_URL}

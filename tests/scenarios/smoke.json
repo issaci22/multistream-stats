@@ -1,0 +1,13 @@
+{
+  "description": "Plugin loads in OBS 33.0.1, dock registers and shows an idle state with N/A (not zero) values, clean shutdown without leaks.",
+  "steps": [
+    { "at": 2, "action": "show_dock", "width": 420, "height": 640, "x": 80, "y": 80 },
+    { "at": 4, "action": "checkpoint", "name": "idle",
+      "expect": {
+        "rows": { "primary": { "state": "Idle", "kbps": "na", "dropped": "na", "bytes": "na", "duration_ms": "na", "health": "0" } },
+        "summary": { "rows": "1", "running": "0", "live": "0", "sum_kbps": "na", "dropped": "na", "overall": "0", "aitum_config": "0" }
+      } },
+    { "at": 5, "action": "screenshot", "file": "idle.png" },
+    { "at": 7, "action": "quit" }
+  ]
+}

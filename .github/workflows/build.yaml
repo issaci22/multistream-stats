@@ -1,0 +1,569 @@
+# Build, unit-test, package and smoke-test Multi-Stream Stats on Windows, macOS and Linux.
+# This workflow never publishes anything: packages are uploaded as workflow artifacts for inspection only.
+# Publishing is done by release.yaml (manual trigger + approval of the "release" environment).
+name: Build and test
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**', 'LICENSE']
+  pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**', 'LICENSE']
+  workflow_dispatch:
+    inputs:
+      macos_smoke:
+        description: Run the macOS runtime smoke tests (slow, macOS minutes count 10x on private repositories)
+        type: boolean
+        default: true
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
+
+env:
+  OBS_VERSION: 33.0.1
+  # Official OBS Studio 33.0.1 downloads used by the smoke tests (digests from the GitHub release).
+  OBS_WINDOWS_ZIP_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip
+  OBS_WINDOWS_ZIP_SHA256: 0d9436451c2d772b33428e3fdae9776f071895c335de17283176306fb72651d3
+  OBS_WINDOWS_INSTALLER_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64-Installer.exe
+  OBS_WINDOWS_INSTALLER_SHA256: 37ecde4d9a28e8aeeb07623c8469b5d558eb264e02ccf435bb859891c401758b
+  OBS_MACOS_APPLE_DMG_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-macOS-Apple.dmg
+  OBS_MACOS_APPLE_DMG_SHA256: 3d6b2eedeb56416602af635adaba32327fdf11ff9d2806a4ce7d5b608de73238
+  OBS_MACOS_INTEL_DMG_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-macOS-Intel.dmg
+  OBS_MACOS_INTEL_DMG_SHA256: 745257d65e06eb0f784af229659223a863ad50d036464bb2b52f8a2d9278c2b1
+  INNO_SETUP_URL: https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe
+  INNO_SETUP_SHA256: a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c
+
+jobs:
+  # ---------------------------------------------------------------------------------------------
+  windows:
+    name: Windows x64 - build, unit tests, package
+    runs-on: windows-2025-vs2026
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache OBS SDK and dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .deps
+          key: deps-windows-x64-${{ hashFiles('buildspec.json', 'cmake/common/buildspec_common.cmake', 'cmake/windows/buildspec.cmake') }}
+
+      - name: Configure
+        run: |
+          New-Item -ItemType Directory -Force ci-logs | Out-Null
+          cmake --version
+          cmake --preset windows-ci-x64 *>&1 | Tee-Object -FilePath ci-logs/windows-configure.log
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Build (warnings are errors)
+        run: |
+          cmake --build --preset windows-ci-x64 -- /nologo /v:minimal *>&1 | Tee-Object -FilePath ci-logs/windows-build.log
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Unit tests
+        run: |
+          ctest --preset windows-ci-x64 *>&1 | Tee-Object -FilePath ci-logs/windows-unit-tests.log
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Stage plugin and audit its dependencies
+        run: |
+          cmake --install build_x64 --config RelWithDebInfo
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $dumpbin = (Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1).FullName
+          $dll = 'build_x64/stage/obs-multistream-stats/obs-multistream-stats.dll'
+          & $dumpbin /nologo /dependents /headers $dll | Tee-Object -FilePath ci-logs/windows-dependency-audit.txt | Select-String 'Image has the following dependencies' -Context 0,20
+          $deps = & $dumpbin /nologo /dependents $dll | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() }
+          $allowed = '^(obs|obs-frontend-api|Qt6Core|Qt6Gui|Qt6Widgets|KERNEL32|USER32|MSVCP140(_\d)?|VCRUNTIME140(_\d)?|api-ms-win-crt-.+)\.dll$'
+          $unexpected = @($deps | Where-Object { $_ -notmatch $allowed })
+          "Dependencies: $($deps -join ', ')"
+          if ($unexpected) { Write-Output "::warning::Unexpected DLL dependencies: $($unexpected -join ', ')" }
+
+      - name: Install Inno Setup 6.7.4 (pinned download, signature checked)
+        run: |
+          $f = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.4.exe'
+          Invoke-WebRequest -UseBasicParsing $env:INNO_SETUP_URL -OutFile $f
+          if ((Get-FileHash $f -Algorithm SHA256).Hash -ne $env:INNO_SETUP_SHA256) { throw 'Inno Setup download hash mismatch' }
+          $sig = Get-AuthenticodeSignature $f
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Pyrsys B\.V\.') { throw "Unexpected Inno Setup signature: $($sig.Status) $($sig.SignerCertificate.Subject)" }
+          $dir = Join-Path $env:RUNNER_TEMP 'InnoSetup'
+          Start-Process -Wait -FilePath $f -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CURRENTUSER', "/DIR=$dir"
+          if (-not (Test-Path "$dir\ISCC.exe")) { throw 'ISCC.exe not installed' }
+          "ISCC=$dir\ISCC.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Package (pipeline check with the CI-built DLL; never released)
+        run: tools/package-windows.ps1 -Payload build_x64/stage/obs-multistream-stats -OutDir artifacts/ci/windows -AllowUnpinned
+
+      - name: Upload packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-packages
+          path: artifacts/ci/windows/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload test plugin (mock outputs + harness, never packaged)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-test-plugin
+          path: build_x64/rundir/RelWithDebInfo/msd-mock-outputs/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-build-logs
+          path: |
+            ci-logs/
+            build_x64/Testing/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  windows-smoke:
+    name: Windows x64 - installer and OBS loading tests
+    needs: windows
+    runs-on: windows-2025-vs2026
+    # Runs OBS without a GPU (Microsoft Basic Render Driver); failures are reported but do not block.
+    continue-on-error: true
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-packages
+          path: pkg
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-test-plugin
+          path: ${{ runner.temp }}/test-env/plugins/msd-mock-outputs
+
+      - name: Test the installer with a portable OBS 33.0.1
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content buildspec.json -Raw | ConvertFrom-Json).version
+          $setup = (Get-ChildItem pkg -Filter '*-installer.exe').FullName
+          $zip = Join-Path $env:RUNNER_TEMP 'obs.zip'
+          Invoke-WebRequest -UseBasicParsing $env:OBS_WINDOWS_ZIP_URL -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:OBS_WINDOWS_ZIP_SHA256) { throw 'OBS ZIP hash mismatch' }
+          $obs = Join-Path $env:RUNNER_TEMP 'test-env\obs-portable'
+          Expand-Archive $zip -DestinationPath $obs
+          if (-not (Test-Path "$obs\bin\64bit\obs64.exe")) { $inner = Get-ChildItem $obs -Directory | Select-Object -First 1; $obs = $inner.FullName }
+          Set-Content -Path "$obs\obs_portable_mode.txt" -Value ''
+          $cfg = "$obs\config\obs-studio"
+          $plugins = Join-Path $env:RUNNER_TEMP 'test-env\plugins'
+          $common = @{ ObsCommand = "$obs\bin\64bit\obs64.exe"; ObsArgs = @('--portable', '--multi', '--disable-updater', '--disable-missing-files-check'); ConfigRoot = $cfg; PluginsPath = $plugins; Scenario = 'tests/scenarios/smoke.json' }
+          New-Item -ItemType Directory -Force results | Out-Null
+
+          # Control run without this plugin: memory-leak baseline.
+          ./tools/ci-smoke-test.ps1 @common -Out results/windows-portable-control -SeedConfig -ControlRun
+          $baseline = [int](Get-Content results/windows-portable-control/leaks.txt)
+
+          # Refusals: silent install must name the OBS; a folder that is not OBS is rejected.
+          $p = Start-Process -Wait -PassThru $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', "/LOG=$PWD\results\setup-no-mode.log"
+          if ($p.ExitCode -eq 0) { throw 'silent install without /MODE must fail' }
+          $p = Start-Process -Wait -PassThru $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/MODE=portable', "/OBSDIR=$env:RUNNER_TEMP", "/LOG=$PWD\results\setup-not-obs.log"
+          if ($p.ExitCode -eq 0) { throw 'install into a non-OBS folder must fail' }
+
+          # Install, load, reinstall, uninstall.
+          $p = Start-Process -Wait -PassThru $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/MODE=portable', "/OBSDIR=$obs", "/LOG=$PWD\results\setup-portable.log"
+          if ($p.ExitCode -ne 0) { throw "portable install failed ($($p.ExitCode))" }
+          $target = "$obs\plugins\obs-multistream-stats"
+          Get-ChildItem $target -Recurse -File | ForEach-Object { $_.FullName.Substring($target.Length + 1) } | Tee-Object results/windows-portable-installed-files.txt
+          if (Test-Path "$target\obs-multistream-stats.pdb") { throw 'debug symbols must not be installed' }
+          ./tools/ci-smoke-test.ps1 @common -Out results/windows-portable -ExpectVersion $version -LeakBaseline $baseline
+          if ($LASTEXITCODE) { throw 'portable smoke test failed' }
+          $state = "$cfg\plugin_config\obs-multistream-stats\dock-state.json"
+          $before = (Get-FileHash $state).Hash
+          $p = Start-Process -Wait -PassThru $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/MODE=portable', "/OBSDIR=$obs", "/LOG=$PWD\results\setup-reinstall.log"
+          if ($p.ExitCode -ne 0) { throw 'reinstall failed' }
+          if ((Get-FileHash $state).Hash -ne $before) { throw 'reinstall changed the plugin settings' }
+          $unins = Get-ChildItem "$env:APPDATA\Multi-Stream Stats\uninstall" -Filter 'unins*.exe' | Select-Object -First 1
+          Start-Process -Wait $unins.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\results\uninstall-portable.log"
+          # The uninstaller re-launches itself from %TEMP%; wait for it to finish.
+          for ($i = 0; $i -lt 60 -and (Test-Path "$target\obs-multistream-stats.dll"); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path "$target\obs-multistream-stats.dll") { throw 'uninstall left the plugin DLL' }
+          if ((Get-FileHash $state).Hash -ne $before) { throw 'uninstall changed or removed the plugin settings' }
+          'portable installer tests passed'
+
+      - name: Test the installer with a standard OBS 33.0.1 installation
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content buildspec.json -Raw | ConvertFrom-Json).version
+          $setup = (Get-ChildItem pkg -Filter '*-installer.exe').FullName
+          $obsSetup = Join-Path $env:RUNNER_TEMP 'obs-setup.exe'
+          Invoke-WebRequest -UseBasicParsing $env:OBS_WINDOWS_INSTALLER_URL -OutFile $obsSetup
+          if ((Get-FileHash $obsSetup -Algorithm SHA256).Hash -ne $env:OBS_WINDOWS_INSTALLER_SHA256) { throw 'OBS installer hash mismatch' }
+          Start-Process -Wait $obsSetup -ArgumentList '/S'
+          # Record where the official installer registers OBS (used by our installer's detection).
+          Get-ItemProperty 'HKLM:\SOFTWARE\OBS Studio' -ErrorAction SilentlyContinue | Format-List | Out-String | Tee-Object results/windows-standard-registry.txt
+          Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OBS Studio' -ErrorAction SilentlyContinue | Format-List | Out-String | Tee-Object -Append results/windows-standard-registry.txt
+          $obsExe = "$env:ProgramFiles\obs-studio\bin\64bit\obs64.exe"
+          if (-not (Test-Path $obsExe)) { throw "OBS not installed at $obsExe" }
+          $cfg = "$env:APPDATA\obs-studio"
+          $common = @{ ObsCommand = $obsExe; ConfigRoot = $cfg; PluginsPath = (Join-Path $env:RUNNER_TEMP 'test-env\plugins'); Scenario = 'tests/scenarios/smoke.json' }
+          ./tools/ci-smoke-test.ps1 @common -Out results/windows-standard-control -SeedConfig -ControlRun
+          $baseline = [int](Get-Content results/windows-standard-control/leaks.txt)
+          $p = Start-Process -Wait -PassThru $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/ALLUSERS', '/MODE=standard', "/LOG=$PWD\results\setup-standard.log"
+          if ($p.ExitCode -ne 0) { throw "standard install failed ($($p.ExitCode))" }
+          $target = "$env:ProgramData\obs-studio\plugins\obs-multistream-stats"
+          Get-ChildItem $target -Recurse -File | ForEach-Object { $_.FullName.Substring($target.Length + 1) } | Tee-Object results/windows-standard-installed-files.txt
+          ./tools/ci-smoke-test.ps1 @common -Out results/windows-standard -ExpectVersion $version -LeakBaseline $baseline
+          if ($LASTEXITCODE) { throw 'standard smoke test failed' }
+          $state = "$cfg\plugin_config\obs-multistream-stats\dock-state.json"
+          $before = (Get-FileHash $state).Hash
+          $unins = Get-ChildItem "$env:ProgramData\Multi-Stream Stats\uninstall" -Filter 'unins*.exe' | Select-Object -First 1
+          Start-Process -Wait $unins.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\results\uninstall-standard.log"
+          for ($i = 0; $i -lt 60 -and (Test-Path "$target\obs-multistream-stats.dll"); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path "$target\obs-multistream-stats.dll") { throw 'uninstall left the plugin DLL' }
+          if ((Get-FileHash $state).Hash -ne $before) { throw 'uninstall changed or removed the plugin settings' }
+          'standard installer tests passed'
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-smoke-results
+          path: results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  linux:
+    name: Ubuntu 26.04 x86_64 - build, unit tests, package
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install OBS Studio 33 (official PPA) and build tools
+        run: |
+          mkdir -p ci-logs
+          sudo add-apt-repository --yes ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev libgles2-mesa-dev \
+            libsimde-dev build-essential cmake ninja-build pkg-config jq lintian file dpkg-dev
+          v=$(dpkg-query -W -f='${Version}' obs-studio); v=${v#*:}
+          echo "obs-studio $v" | tee ci-logs/linux-obs-package.txt
+          dpkg --compare-versions "$v" ge 33 && dpkg --compare-versions "$v" lt 34 || { echo "::error::OBS Studio $v is not 33.x"; exit 1; }
+          dpkg -L obs-studio | grep -E 'obs-modules|/cmake/(libobs|obs-frontend-api)/|include/obs/obs-(module|frontend-api)\.h' | tee ci-logs/linux-obs-layout.txt
+          dpkg-query -W 'libqt6core6*' qt6-base-dev | tee -a ci-logs/linux-obs-package.txt
+
+      - name: Configure, build, unit tests
+        run: |
+          set -o pipefail
+          cmake --preset ubuntu-ci-x86_64 2>&1 | tee ci-logs/linux-configure.log
+          cmake --build --preset ubuntu-ci-x86_64 2>&1 | tee ci-logs/linux-build.log
+          ctest --preset ubuntu-ci-x86_64 2>&1 | tee ci-logs/linux-unit-tests.log
+          echo "Compiler warnings in our sources: $(grep -c 'warning:' ci-logs/linux-build.log || true)"
+
+      - name: Strict build (warnings as errors; report only)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cmake --preset ubuntu-ci-strict-x86_64 > ci-logs/linux-strict-configure.log 2>&1
+          cmake --build --preset ubuntu-ci-strict-x86_64 2>&1 | tee ci-logs/linux-strict-build.log
+
+      - name: Package and verify
+        env:
+          DEB_MAINTAINER: 'Multi-Stream Stats Maintainers <137911543+issaci22@users.noreply.github.com>'
+        run: bash .github/scripts/package-linux.sh build_x86_64 artifacts/ci/linux
+
+      - name: Upload packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-packages
+          path: artifacts/ci/linux/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload test plugin (mock outputs + harness, never packaged)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-test-plugin
+          path: build_x86_64/rundir/RelWithDebInfo/msd-mock-outputs/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-build-logs
+          path: |
+            ci-logs/
+            build_x86_64/Testing/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  linux-smoke:
+    name: Ubuntu 26.04 x86_64 - .deb / .tar.xz and OBS loading tests
+    needs: linux
+    runs-on: ubuntu-26.04
+    env:
+      XDG_CONFIG_HOME: ${{ github.workspace }}/xdg/config
+      XDG_DATA_HOME: ${{ github.workspace }}/xdg/data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-packages
+          path: pkg
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-test-plugin
+          path: ${{ runner.temp }}/test-env/plugins/msd-mock-outputs
+
+      - name: Install OBS Studio 33 (official PPA), Xvfb and PowerShell
+        run: |
+          sudo add-apt-repository --yes ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y obs-studio xvfb xauth mesa-utils libgl1-mesa-dri dbus-x11
+          command -v pwsh || sudo snap install powershell --classic
+          (cd pkg && sha256sum -c SHA256SUMS-linux.txt)
+
+      - name: Test the .deb, then the manual .tar.xz
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version buildspec.json)
+          deb=$(ls pkg/*.deb); tarball=$(ls pkg/*-manual.tar.xz)
+          mkdir -p results "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+          run() { dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1080x24' pwsh ./tools/ci-smoke-test.ps1 -ObsCommand obs \
+                    -ConfigRoot "$XDG_CONFIG_HOME/obs-studio" -PluginsPath "$RUNNER_TEMP/test-env/plugins" \
+                    -Scenario tests/scenarios/smoke.json "$@"; }
+          run -Out results/linux-control -SeedConfig -ControlRun
+          baseline=$(cat results/linux-control/leaks.txt)
+
+          # .deb: install, check paths against OBS's own layout, load, reinstall, remove.
+          sudo apt-get install -y "./$deb"
+          dpkg -L obs-multistream-stats | tee results/linux-deb-files.txt
+          so=$(dpkg -L obs-multistream-stats | grep '/obs-modules/plugins/obs-multistream-stats.so$')
+          test -f "$so"
+          run -Out results/linux-deb -ExpectVersion "$version" -LeakBaseline "$baseline"
+          state="$XDG_CONFIG_HOME/obs-studio/plugin_config/obs-multistream-stats/dock-state.json"
+          before=$(sha256sum "$state")
+          sudo dpkg -i "$deb"
+          sudo apt-get remove -y obs-multistream-stats
+          test ! -e "$so" || { echo "::error::removal left $so"; exit 1; }
+          [[ "$(sha256sum "$state")" == "$before" ]] || { echo "::error::package removal changed the plugin settings"; exit 1; }
+
+          # Manual archive: per-user install under $XDG_DATA_HOME.
+          mkdir -p "$RUNNER_TEMP/tar" "$XDG_DATA_HOME/obs-studio/plugins"
+          tar -xJf "$tarball" -C "$RUNNER_TEMP/tar"
+          cp -r "$RUNNER_TEMP/tar/obs-multistream-stats" "$XDG_DATA_HOME/obs-studio/plugins/"
+          run -Out results/linux-tar -ExpectVersion "$version" -LeakBaseline "$baseline"
+          echo "Linux package tests passed"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-smoke-results
+          path: results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  macos:
+    name: macOS universal - build, unit tests, package
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        id: xcode
+        run: |
+          if [[ -d /Applications/Xcode_26.5.app ]]; then sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer; fi
+          xcodebuild -version
+          echo "version=$(xcodebuild -version | head -1 | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache OBS SDK and dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .deps
+          key: deps-macos-universal-${{ steps.xcode.outputs.version }}-${{ hashFiles('buildspec.json', 'cmake/common/buildspec_common.cmake', 'cmake/macos/buildspec.cmake') }}
+
+      - name: Configure, build, unit tests
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          cmake --preset macos-ci 2>&1 | tee ci-logs/macos-configure.log
+          cmake --build --preset macos-ci 2>&1 | tee ci-logs/macos-build.log | grep -E 'warning:|error:|BUILD (SUCCEEDED|FAILED)' || true
+          grep -q 'BUILD SUCCEEDED' ci-logs/macos-build.log
+          ctest --preset macos-ci 2>&1 | tee ci-logs/macos-unit-tests.log
+          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo "== unit tests, x86_64 slice (Rosetta)"
+            /usr/bin/arch -x86_64 build_macos/tests/unit/RelWithDebInfo/msd-core-tests 2>&1 | tee ci-logs/macos-unit-tests-x86_64.log
+          else
+            echo "Rosetta not available: x86_64 slice is runtime-tested by the Intel smoke job" | tee ci-logs/macos-unit-tests-x86_64.log
+          fi
+
+      - name: Strict build (warnings as errors; report only)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cmake --preset macos-ci-strict > ci-logs/macos-strict-configure.log 2>&1
+          cmake --build --preset macos-ci-strict 2>&1 | tee ci-logs/macos-strict-build.log | grep -E 'warning:|error:|BUILD (SUCCEEDED|FAILED)'
+
+      - name: Package and verify
+        env:
+          CODESIGN_IDENT: ''          # Developer ID signing is wired in release.yaml when credentials exist
+          CODESIGN_IDENT_INSTALLER: ''
+        run: bash .github/scripts/package-macos.sh build_macos artifacts/ci/macos
+
+      - name: Upload packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-packages
+          path: artifacts/ci/macos/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload test plugin (mock outputs + harness, never packaged)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-test-plugin
+          path: build_macos/rundir/RelWithDebInfo/msd-mock-outputs.plugin/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-build-logs
+          path: |
+            ci-logs/
+            build_macos/Testing/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  macos-smoke:
+    name: macOS ${{ matrix.arch }} - installer and OBS loading tests
+    needs: macos
+    if: github.event_name == 'workflow_call' || github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.macos_smoke)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-26
+            dmg: apple
+          - arch: x86_64
+            runner: macos-26-intel
+            dmg: intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-packages
+          path: pkg
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-test-plugin
+          path: ${{ runner.temp }}/test-env/plugins/msd-mock-outputs.plugin
+
+      - name: Install OBS Studio 33.0.1 (official DMG, digest checked)
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.dmg }}" == apple ]]; then url=$OBS_MACOS_APPLE_DMG_URL; sum=$OBS_MACOS_APPLE_DMG_SHA256; else url=$OBS_MACOS_INTEL_DMG_URL; sum=$OBS_MACOS_INTEL_DMG_SHA256; fi
+          curl -fsSL -o "$RUNNER_TEMP/obs.dmg" "$url"
+          echo "$sum  $RUNNER_TEMP/obs.dmg" | shasum -a 256 -c
+          mkdir -p "$RUNNER_TEMP/obs-mnt"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/obs-mnt" "$RUNNER_TEMP/obs.dmg"
+          ditto "$RUNNER_TEMP/obs-mnt/OBS.app" /Applications/OBS.app
+          hdiutil detach "$RUNNER_TEMP/obs-mnt"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/OBS.app/Contents/Info.plist
+          (cd pkg && shasum -a 256 -c SHA256SUMS-macos.txt)
+          chmod +x "$RUNNER_TEMP/test-env/plugins/msd-mock-outputs.plugin/Contents/MacOS/"*
+
+      - name: Test the DMG installer, then the manual ZIP
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version buildspec.json)
+          cfg="$HOME/Library/Application Support/obs-studio"
+          plugins="$HOME/Library/Application Support/obs-studio/plugins"
+          mkdir -p results
+          run() { pwsh ./tools/ci-smoke-test.ps1 -ObsCommand /Applications/OBS.app/Contents/MacOS/OBS -ConfigRoot "$cfg" \
+                    -PluginsPath "$RUNNER_TEMP/test-env/plugins" -Scenario tests/scenarios/smoke.json "$@"; }
+          run -Out results/macos-control -SeedConfig -ControlRun
+          baseline=$(cat results/macos-control/leaks.txt)
+
+          # DMG -> PKG, exactly as a user does it (current-user install, no sudo).
+          mkdir -p "$RUNNER_TEMP/dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" pkg/*-macos-universal.dmg
+          ls -la "$RUNNER_TEMP/dmg" | tee results/macos-dmg-contents.txt
+          installer -pkg "$RUNNER_TEMP/dmg/Install Multi-Stream Stats.pkg" -target CurrentUserHomeDirectory -verboseR | tee results/macos-installer.log
+          test -x "$plugins/obs-multistream-stats.plugin/Contents/MacOS/obs-multistream-stats"
+          lipo -archs "$plugins/obs-multistream-stats.plugin/Contents/MacOS/obs-multistream-stats" | tee results/macos-installed-archs.txt
+          run -Out results/macos-pkg -ExpectVersion "$version" -LeakBaseline "$baseline"
+          state="$cfg/plugin_config/obs-multistream-stats/dock-state.json"
+          before=$(shasum -a 256 "$state")
+          installer -pkg "$RUNNER_TEMP/dmg/Install Multi-Stream Stats.pkg" -target CurrentUserHomeDirectory
+          [[ "$(shasum -a 256 "$state")" == "$before" ]] || { echo "::error::reinstall changed the plugin settings"; exit 1; }
+          hdiutil detach "$RUNNER_TEMP/dmg"
+          # Documented uninstall: remove the bundle; settings stay.
+          rm -rf "$plugins/obs-multistream-stats.plugin"
+          [[ "$(shasum -a 256 "$state")" == "$before" ]]
+
+          # Manual ZIP, as downloaded by a browser (quarantine flag), then the documented steps.
+          zip=$(ls pkg/*-macos-universal-manual.zip)
+          cp "$zip" "$RUNNER_TEMP/manual.zip"
+          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/manual.zip"
+          ditto -x -k "$RUNNER_TEMP/manual.zip" "$RUNNER_TEMP/manual"
+          { echo "## Gatekeeper (informational, CI VM)"; spctl --status || true
+            xattr -l "$RUNNER_TEMP/manual/obs-multistream-stats.plugin" || true
+            spctl --assess --type execute -vv "$RUNNER_TEMP/manual/obs-multistream-stats.plugin" 2>&1 || true
+            codesign -dv "$RUNNER_TEMP/manual/obs-multistream-stats.plugin" 2>&1 || true; } | tee results/macos-gatekeeper.txt
+          cp -R "$RUNNER_TEMP/manual/obs-multistream-stats.plugin" "$plugins/"
+          xattr -dr com.apple.quarantine "$plugins/obs-multistream-stats.plugin"
+          run -Out results/macos-zip -ExpectVersion "$version" -LeakBaseline "$baseline"
+          echo "macOS package tests passed (${{ matrix.arch }})"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-smoke-results-${{ matrix.arch }}
+          path: results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------
+  checksums:
+    name: Checksums of all CI packages
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '*-packages'
+          path: all
+      - name: Verify per-platform checksums and write a combined list
+        run: |
+          set -euo pipefail
+          (cd all/windows-packages && sha256sum -c SHA256SUMS-windows.txt)
+          (cd all/linux-packages && sha256sum -c SHA256SUMS-linux.txt)
+          (cd all/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
+          (cd all && find . -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.dmg' -o -name '*.pkg' -o -name '*.deb' -o -name '*.tar.xz' \) \
+              -printf '%P\n' | sort | xargs sha256sum) | tee SHA256SUMS-ci.txt
+          echo '### CI packages (not release assets)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"; cat SHA256SUMS-ci.txt >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-checksums
+          path: SHA256SUMS-ci.txt
+          retention-days: 30

@@ -1,0 +1,63 @@
+Multi-Stream Stats {VERSION} for Linux (x86_64) - manual installation
+==========================================================================
+
+Requirements
+------------
+- OBS Studio 33.x, installed natively (not the Flatpak; see "Flatpak" below).
+- Tested: Ubuntu 26.04 x86_64 with OBS Studio 33 from the official OBS PPA.
+- Other distributions: may work if they ship OBS Studio 33.x built with Qt 6.10 or
+  newer and a C library at least as new as Ubuntu 26.04's (glibc {GLIBC}).
+  Not tested; please report your results on the project page.
+
+On Ubuntu 26.04 the .deb package is easier: obs-multistream-stats_{VERSION}_ubuntu-26.04_amd64.deb.
+
+What is in this archive
+-----------------------
+  obs-multistream-stats/             <- the plugin folder: copy this whole folder
+    obs-multistream-stats.so
+    data/manifest.json
+    data/locale/en-US.ini
+  INSTALL.txt                        <- this file
+  LICENSE                            <- GNU General Public License, version 2
+
+Install (current user)
+----------------------
+Close OBS Studio, then run:
+
+  mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/obs-studio/plugins"
+  cp -r obs-multistream-stats "${XDG_DATA_HOME:-$HOME/.local/share}/obs-studio/plugins/"
+
+Afterwards this file must exist:
+  ~/.local/share/obs-studio/plugins/obs-multistream-stats/obs-multistream-stats.so
+
+Do not use ~/.config/obs-studio/plugins/: that is the old (legacy) location.
+
+Custom location (advanced)
+--------------------------
+OBS also loads plugins from the folder named by the OBS_PLUGINS_PATH environment variable:
+  OBS_PLUGINS_PATH=/path/to/plugins obs
+with the plugin in /path/to/plugins/obs-multistream-stats/. OBS started with --portable
+ignores ~/.local/share/obs-studio/plugins/, so use OBS_PLUGINS_PATH for a portable OBS.
+
+Check that it works
+-------------------
+1. Start OBS Studio.
+2. Open Docks > Multi-Stream Statistics.
+3. Tools > Plugin Manager lists "Multi-Stream Statistics".
+4. Help > Log Files > View Current Log contains the line
+     [multistream-stats] loaded version {VERSION}
+
+Uninstall
+---------
+Close OBS and delete ~/.local/share/obs-studio/plugins/obs-multistream-stats/.
+The dock keeps a small settings file in ~/.config/obs-studio/plugin_config/obs-multistream-stats/;
+delete that folder as well if you want to remove it.
+
+Flatpak
+-------
+This archive does not support OBS Studio installed from Flathub. Flatpak OBS runs in a sandbox
+with its own libraries, so a plugin built for the system OBS is not guaranteed to work there.
+See COMPATIBILITY.md on the project page for the current status.
+
+Project page, source code and bug reports:
+  {PROJECT_URL}

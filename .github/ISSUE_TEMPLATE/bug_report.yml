@@ -1,0 +1,83 @@
+name: Bug report
+description: Something in the Multi-Stream Statistics dock is wrong, missing or crashes.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check [INSTALL.md](../blob/main/INSTALL.md#troubleshooting) first if the dock does not appear at all.
+        **Never paste stream keys.** OBS logs do not contain stream keys, but screenshots of settings might.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: From the OBS log line "[multistream-stats] loaded version …", or Tools > Plugin Manager.
+      placeholder: 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: obs-version
+    attributes:
+      label: OBS Studio version
+      placeholder: 33.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Ubuntu 26.04
+        - Other Linux (please name it below)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install the plugin?
+      options:
+        - Windows installer (.exe)
+        - Windows ZIP (manual)
+        - macOS DMG / PKG installer
+        - macOS ZIP (manual)
+        - Linux .deb
+        - Linux .tar.xz (manual)
+    validations:
+      required: true
+  - type: dropdown
+    id: obs-install
+    attributes:
+      label: How is OBS Studio installed?
+      options:
+        - Standard installer
+        - Portable (ZIP download)
+        - Steam
+        - macOS app (DMG)
+        - Linux package (PPA / distribution)
+        - Flatpak (not supported yet)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Which destination (OBS stream, Aitum Multistream, …), which value, and what the native Stats dock showed at the same time if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: OBS log
+      description: Help > Log Files > Upload Current Log File, then paste the link here (or attach the file).
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: A screenshot of the dock helps a lot. Hover a value showing N/A to see the reason in its tooltip.

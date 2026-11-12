@@ -1,0 +1,10 @@
+Multi-Stream Stats {VERSION}
+
+This installs the Multi-Stream Statistics dock for OBS Studio 33 or newer.
+
+The plugin is installed for your user account only, into:
+  ~/Library/Application Support/obs-studio/plugins/obs-multistream-stats.plugin
+
+That is the folder OBS Studio loads plugins from. Your OBS settings, scenes and profiles are not changed. An older version of the plugin in the same place is replaced; the dock's own settings are kept.
+
+Please quit OBS Studio before you continue.

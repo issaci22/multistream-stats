@@ -1,0 +1,28 @@
+{
+  "description": "1.0.1 rendering/encoding-lag counting window vs the native OBS Stats dock. Run with ExtraEnv MSD_MOCK_STARTUP_LAG_MS (the test-only mock makes the graphics thread lag while OBS is still loading). Both docks must count from the same point: the implied window starts (counter now - displayed total) must match within ~1 frame of read latency, and the startup lag must be excluded by both. Then a libobs video reset and this dock's Reset must each re-baseline.",
+  "log_expect": [
+    { "pattern": "\\[msd-mock\\] startup lag stopped .*lagged=[1-9]", "count": ">=1" },
+    { "pattern": "\\[multistream-stats\\] lag window: baseline \\(loaded\\)", "count": "1" },
+    { "pattern": "\\[multistream-stats\\] lag window: baseline \\(video_reset\\)", "count": ">=1" },
+    { "pattern": "\\[multistream-stats\\] lag window: baseline \\(user_reset\\)", "count": "1" }
+  ],
+  "steps": [
+    { "at": 1.0, "action": "show_dock", "dock": "statsDock", "width": 640, "height": 320, "x": 720, "y": 30 },
+    { "at": 1.0, "action": "show_dock", "width": 380, "height": 900, "x": 40, "y": 30 },
+    { "at": 2.0, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_YouTube Horizontal", "width": 1280, "height": 720, "bitrate": 2500, "gpu_scale": false },
+    { "at": 2.5, "action": "start", "id": "A" },
+    { "at": 6.0, "action": "probe_lag", "name": "after-load", "duration": 12,
+      "expect": { "ok": "1", "native_samples": ">=3", "ours_samples": ">=5", "diff_total": "<=3", "diff_lagged": "0",
+                  "enc_native_samples": ">=3", "enc_ours_samples": ">=5", "enc_diff_total": "<=3", "enc_diff_skipped": "0" } },
+    { "at": 18.5, "action": "screenshot", "dock": "statsDock", "file": "native-stats.png" },
+    { "at": 18.5, "action": "screenshot", "file": "ours.png" },
+    { "at": 19.0, "action": "checkpoint", "name": "loaded", "expect": { "summary": { "lag_window": "0", "render_total": ">0" } } },
+    { "at": 20.0, "action": "stop", "id": "A" },
+    { "at": 21.0, "action": "release", "id": "A" },
+    { "at": 23.0, "action": "reset_video" },
+    { "at": 25.0, "action": "checkpoint", "name": "after-video-reset", "expect": { "summary": { "lag_window": "1", "render_total": ">=0" } } },
+    { "at": 26.0, "action": "click_reset" },
+    { "at": 28.0, "action": "checkpoint", "name": "after-user-reset", "expect": { "summary": { "lag_window": "2", "render_lagged": "0" } } },
+    { "at": 29.0, "action": "quit" }
+  ]
+}

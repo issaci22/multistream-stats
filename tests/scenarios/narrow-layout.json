@@ -1,0 +1,64 @@
+{
+  "description": "1.0.1 narrow-dock layout: mixed live/dropping/disconnected/SRT-like outputs at 360/320/300/280/260 px floating, sections collapsed and expanded, and 280 px docked. At every width no measured value may be elided, cut off or outside the viewport, no horizontal scroll bar may appear, and every shortened label/value must carry its full text in its tooltip.",
+  "steps": [
+    { "at": 2.0, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_YouTube Horizontal", "width": 1280, "height": 720, "bitrate": 2500, "gpu_scale": true },
+    { "at": 2.0, "action": "create", "id": "B", "type": "full", "name": "aitum_multi_output_Kick Output", "width": 854, "height": 480, "bitrate": 1200, "gpu_scale": true, "retries": 1, "retry_delay": 1 },
+    { "at": 2.0, "action": "create", "id": "C", "type": "basic", "name": "msd_srt_like_output", "bitrate": 800, "gpu_scale": false },
+    { "at": 2.5, "action": "start", "id": "A" },
+    { "at": 2.5, "action": "start", "id": "B" },
+    { "at": 2.5, "action": "start", "id": "C" },
+    { "at": 4.0, "action": "set", "id": "A", "drop_rate": 0.025, "congestion": 0.4 },
+    { "at": 7.0, "action": "set", "id": "B", "unreachable": true },
+    { "at": 7.2, "action": "disconnect", "id": "B" },
+
+    { "at": 12.0, "action": "show_dock", "width": 360, "height": 900, "x": 60, "y": 30 },
+    { "at": 12.5, "action": "checkpoint", "name": "mixed",
+      "expect": {
+        "rows": {
+          "aitum:YouTube Horizontal": { "state": "Live", "dropped": ">0" },
+          "aitum:Kick Output": { "shown": "0", "state": "Disconnected" },
+          "output:msd_srt_like_output|127.0.0.1": { "state": "Live", "dropped": "na" }
+        },
+        "summary": { "rows": "3", "last_failure": "aitum:Kick Output" }
+      } },
+    { "at": 13.5, "action": "probe_layout", "name": "w360",
+      "expect": { "found": "1", "values": ">=20", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 13.6, "action": "screenshot", "file": "narrow-360.png" },
+
+    { "at": 14.5, "action": "show_dock", "width": 320, "height": 900 },
+    { "at": 16.0, "action": "probe_layout", "name": "w320",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 16.1, "action": "screenshot", "file": "narrow-320.png" },
+
+    { "at": 17.0, "action": "show_dock", "width": 300, "height": 900 },
+    { "at": 18.5, "action": "probe_layout", "name": "w300",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 18.6, "action": "screenshot", "file": "narrow-300.png" },
+
+    { "at": 19.5, "action": "show_dock", "width": 280, "height": 900 },
+    { "at": 21.0, "action": "probe_layout", "name": "w280",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 21.1, "action": "screenshot", "file": "narrow-280.png" },
+
+    { "at": 22.0, "action": "show_dock", "width": 260, "height": 900 },
+    { "at": 23.5, "action": "probe_layout", "name": "w260",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "labels_shortened": ">=1" } },
+    { "at": 23.6, "action": "screenshot", "file": "narrow-260.png" },
+
+    { "at": 24.5, "action": "toggle_sections", "expanded": false },
+    { "at": 25.5, "action": "probe_layout", "name": "w260-collapsed",
+      "expect": { "found": "1", "sections": ">=3", "sections_expanded": "0", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 25.6, "action": "screenshot", "file": "narrow-260-collapsed.png" },
+    { "at": 26.5, "action": "toggle_sections", "expanded": true },
+    { "at": 27.5, "action": "probe_layout", "name": "w260-expanded",
+      "expect": { "found": "1", "sections": ">=3", "sections_expanded": ">=3", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "overlaps": "0", "mode": "0" } },
+
+    { "at": 28.5, "action": "show_dock", "floating": false, "area": "right", "width": 280 },
+    { "at": 30.5, "action": "probe_dock", "name": "docked-280", "expect": { "found": "1", "floating": "0", "width": "<=300" } },
+    { "at": 30.6, "action": "probe_layout", "name": "docked-280",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0", "overlaps": "0", "mode": "0" } },
+    { "at": 30.7, "action": "screenshot", "file": "docked-280.png" },
+    { "at": 31.0, "action": "screenshot", "dock": "main", "file": "main-docked-280.png" },
+    { "at": 32.0, "action": "quit" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "description": "1.0.1 initial dock width. Run with -FreshDockState (no saved layout, like a first-time user): OBS adds the dock, floats it and sizes it from the dock's size hint; it must open ~360 px wide with every value shown in full.",
+  "steps": [
+    { "at": 3.0, "action": "show_dock" },
+    { "at": 4.5, "action": "probe_dock", "name": "first-open-min", "expect": { "found": "1", "floating": "1", "width": ">=352" } },
+    { "at": 4.5, "action": "probe_dock", "name": "first-open-max", "expect": { "found": "1", "width": "<=420" } },
+    { "at": 4.6, "action": "probe_layout", "name": "first-open",
+      "expect": { "found": "1", "values_clipped": "0", "values_elided": "0", "values_compact": "0", "values_offscreen": "0", "hscroll": "0", "tips_missing": "0" } },
+    { "at": 4.7, "action": "screenshot", "file": "first-open.png" },
+    { "at": 6.0, "action": "quit" }
+  ]
+}

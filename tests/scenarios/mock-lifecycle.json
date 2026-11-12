@@ -1,0 +1,80 @@
+{
+  "description": "Simulated destinations (no network): capability-based N/A, drops/congestion, reconnect success and failure, Aitum-style stop+release+restart, create/destroy churn, layouts, shutdown while live.",
+  "steps": [
+    { "at": 2, "action": "show_dock", "width": 460, "height": 980, "x": 60, "y": 40 },
+
+    { "at": 3.0, "action": "create", "id": "A", "type": "full", "name": "msd_mock_A", "width": 640, "height": 360, "bitrate": 1500, "gpu_scale": true, "retries": 5, "retry_delay": 1 },
+    { "at": 3.0, "action": "create", "id": "B", "type": "basic", "name": "msd_mock_B", "bitrate": 800, "gpu_scale": false, "retries": 2, "retry_delay": 1 },
+    { "at": 3.0, "action": "create", "id": "C", "type": "full", "name": "aitum_multi_output_Mock Aitum", "width": 854, "height": 480, "bitrate": 1200, "gpu_scale": true },
+    { "at": 4.0, "action": "start", "id": "A" },
+    { "at": 4.0, "action": "start", "id": "B" },
+    { "at": 4.0, "action": "start", "id": "C" },
+
+    { "at": 10, "action": "checkpoint", "name": "all_live",
+      "expect": {
+        "rows": {
+          "output:msd_mock_A|127.0.0.1": { "state": "Live", "present": "1", "kbps": ">0", "bytes": ">0", "total": ">0", "dropped": "na", "congestion": "na", "connect": ">0", "reconnects": "0", "duration_ms": ">3000" },
+          "output:msd_mock_B|127.0.0.1": { "state": "Live", "kbps": ">0", "dropped": "na", "congestion": "na", "connect": "na" },
+          "aitum:Mock Aitum": { "state": "Live", "present": "1", "kbps": ">0" }
+        },
+        "summary": { "running": "3", "live": "3", "sum_kbps": ">0", "dropped": "na", "overall": "1" }
+      } },
+    { "at": 10.5, "action": "screenshot", "file": "mock-all-live.png" },
+
+    { "at": 12, "action": "set", "id": "A", "drop_rate": 0.12, "congestion": 0.8 },
+    { "at": 20, "action": "checkpoint", "name": "A_dropping",
+      "expect": {
+        "rows": { "output:msd_mock_A|127.0.0.1": { "state": "Live", "dropped": ">0", "total": ">0", "congestion": ">0.6", "health": "3" } },
+        "summary": { "dropped": ">0", "overall": "3" }
+      } },
+    { "at": 20.5, "action": "screenshot", "file": "mock-dropping.png" },
+    { "at": 21, "action": "set", "id": "A", "drop_rate": 0.0, "congestion": 0.0 },
+
+    { "at": 22.0, "action": "set", "id": "A", "unreachable": true },
+    { "at": 22.2, "action": "disconnect", "id": "A" },
+    { "at": 23.6, "action": "checkpoint", "name": "A_reconnecting",
+      "expect": {
+        "rows": { "output:msd_mock_A|127.0.0.1": { "state": "Reconnecting", "reconnects": ">=1", "health": "3" } },
+        "summary": { "reconnecting": "1", "overall": "3" }
+      } },
+    { "at": 24.0, "action": "screenshot", "file": "mock-reconnecting.png" },
+    { "at": 24.2, "action": "set", "id": "A", "unreachable": false },
+    { "at": 29, "action": "checkpoint", "name": "A_recovered",
+      "expect": { "rows": { "output:msd_mock_A|127.0.0.1": { "state": "Live", "reconnects": ">=1", "kbps": ">0" } } } },
+
+    { "at": 30.0, "action": "set", "id": "B", "unreachable": true },
+    { "at": 30.2, "action": "disconnect", "id": "B" },
+
+    { "at": 32.0, "action": "stop", "id": "C" },
+    { "at": 32.3, "action": "release", "id": "C" },
+    { "at": 34, "action": "checkpoint", "name": "C_stopped",
+      "expect": { "rows": { "aitum:Mock Aitum": { "shown": "0", "state": "Stopped", "present": "0", "kbps": "na", "bytes": ">0", "duration_ms": ">20000", "code": "0" } } } },
+
+    { "at": 35.0, "action": "create", "id": "C", "type": "full", "name": "aitum_multi_output_Mock Aitum", "width": 854, "height": 480, "bitrate": 1200, "gpu_scale": true },
+    { "at": 35.1, "action": "start", "id": "C" },
+    { "at": 38, "action": "checkpoint", "name": "B_disconnected",
+      "expect": {
+        "rows": { "output:msd_mock_B|127.0.0.1": { "shown": "0", "state": "Disconnected", "code": "-5", "health": "3" } },
+        "summary": { "failed": "0", "last_failure": "output:msd_mock_B|127.0.0.1" }
+      } },
+    { "at": 40, "action": "checkpoint", "name": "C_restarted",
+      "expect": { "rows": { "aitum:Mock Aitum": { "state": "Live", "present": "1", "reconnects": "0", "duration_ms": "<6000" } } } },
+    { "at": 40.5, "action": "screenshot", "file": "mock-mixed-states.png" },
+
+    { "at": 41, "action": "churn", "count": 30, "interval_ms": 150 },
+    { "at": 48, "action": "checkpoint", "name": "after_churn",
+      "expect": {
+        "rows": { "output:msd_mock_A|127.0.0.1": { "shown": "1", "state": "Live" }, "aitum:Mock Aitum": { "shown": "1", "state": "Live" } },
+        "summary": { "rows": "<=5" }
+      } },
+
+    { "at": 49, "action": "show_dock", "width": 230, "height": 760 },
+    { "at": 50, "action": "screenshot", "file": "layout-narrow.png" },
+    { "at": 51, "action": "show_dock", "width": 760, "height": 760 },
+    { "at": 52, "action": "screenshot", "file": "layout-wide.png" },
+    { "at": 53, "action": "show_dock", "width": 420, "height": 260 },
+    { "at": 54, "action": "screenshot", "file": "layout-short.png" },
+
+    { "at": 56, "action": "quit" }
+  ]
+}

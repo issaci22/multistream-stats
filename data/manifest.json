@@ -1,0 +1,12 @@
+{
+    "display_name": "Multi-Stream Statistics",
+    "id": "01c24e0d-ae7e-4d7a-88f7-45ba9cea7123",
+    "version": "1.1.0",
+    "authors": ["OBS Multi-Stream Stats Dock"],
+    "name": "obs-multistream-stats",
+    "description": "A dock with live statistics for every streaming destination.",
+    "long_description": "Adds a Multi-Stream Statistics dock that shows per-destination status, bitrate, network-dropped frames, congestion and connection details for OBS's own stream and for multistream plugins such as Aitum Multistream, plus OBS-wide rendering, encoding and system performance.",
+    "urls": {},
+    "has_banner": false,
+    "has_icon": false
+}

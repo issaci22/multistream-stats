@@ -1,0 +1,7 @@
+Multi-Stream Stats {VERSION} is installed.
+
+Start OBS Studio and open Docks > Multi-Stream Statistics.
+
+To check the installation: Tools > Plugin Manager lists "Multi-Stream Statistics", and the OBS log (Help > Log Files > View Current Log) contains "[multistream-stats] loaded version {VERSION}".
+
+To uninstall: quit OBS Studio and move ~/Library/Application Support/obs-studio/plugins/obs-multistream-stats.plugin to the Trash. (In Finder: Go > Go to Folder..., then paste the folder path.)

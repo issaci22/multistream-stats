@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!-- productbuild distribution for Multi-Stream Stats (filled in by .github/scripts/package-macos.sh).
+     OBS Studio 33 loads third-party plugins only from the user's
+     ~/Library/Application Support/obs-studio/plugins/<name>.plugin, so the package installs into the
+     current user's home folder only (no administrator password, no system-wide location). -->
+<installer-gui-script minSpecVersion="1">
+    <title>Multi-Stream Stats @VERSION@</title>
+    <options rootVolumeOnly="true" hostArchitectures="arm64,x86_64" customize="never" allow-external-scripts="no"/>
+    <domains enable_currentUserHome="true" enable_anywhere="false" enable_localSystem="false"/>
+    <welcome file="welcome.txt" mime-type="text/plain"/>
+    <license file="LICENSE.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.txt" mime-type="text/plain"/>
+    <installation-check script="installCheck();"/>
+    <script><![CDATA[
+function installCheck() {
+    if (system.compareVersions(system.version.ProductVersion, '@MIN_MACOS@') < 0) {
+        my.result.title = 'macOS @MIN_MACOS@ or newer is required';
+        my.result.message = 'Multi-Stream Stats needs macOS @MIN_MACOS@ or newer, like OBS Studio 33.';
+        my.result.type = 'Fatal';
+        return false;
+    }
+    var running = system.applications.fromIdentifier('com.obsproject.obs-studio');
+    if (running && running.length > 0) {
+        my.result.title = 'Please quit OBS Studio';
+        my.result.message = 'OBS Studio is running. Quit OBS Studio first; the plugin is loaded the next time OBS starts.';
+        my.result.type = 'Warning';
+        return false;
+    }
+    return true;
+}
+    ]]></script>
+    <choices-outline>
+        <line choice="plugin"/>
+    </choices-outline>
+    <choice id="plugin" title="Multi-Stream Stats" description="Installs @NAME@.plugin into ~/Library/Application Support/obs-studio/plugins.">
+        <pkg-ref id="@BUNDLE_ID@"/>
+    </choice>
+    <pkg-ref id="@BUNDLE_ID@" version="@VERSION@" onConclusion="none">#@NAME@.pkg</pkg-ref>
+</installer-gui-script>

@@ -1,0 +1,103 @@
+{
+  "description": "Requires setup-test-env.ps1 -WithAitum and run-scenario.ps1 -WithMediaMTX. Real Aitum Multistream 1.0.9 + real rtmp_output to a loopback-only MediaMTX (127.0.0.1). 1.1.0: configured-but-stopped destinations are known (logged, shown=0) but not displayed; each destination appears when started and disappears when stopped, independently of the others; the OBS stream row is displayed throughout. Also: live stats, server outage -> reconnect, restart -> fresh session, shutdown while live.",
+  "mediamtx_events": [
+    { "at": 24, "action": "stop" },
+    { "at": 28, "action": "start" }
+  ],
+  "steps": [
+    { "at": 2, "action": "show_dock", "width": 460, "height": 900, "x": 60, "y": 40 },
+    { "at": 4, "action": "checkpoint", "name": "aitum_configured",
+      "expect": {
+        "rows": {
+          "aitum:Loopback A": { "shown": "0", "state": "Idle", "present": "0", "kbps": "na", "dropped": "na" },
+          "aitum:Loopback B": { "shown": "0", "state": "Idle", "present": "0" },
+          "primary": { "shown": "1", "state": "Idle" }
+        },
+        "summary": { "rows": "1", "running": "0", "aitum_config": "1" }
+      } },
+    { "at": 4.2, "action": "probe_layout", "name": "aitum_configured",
+      "expect": { "found": "1", "sections": "1", "values_clipped": "0", "hscroll": "0", "overlaps": "0" } },
+    { "at": 4.5, "action": "screenshot", "file": "aitum-configured.png" },
+
+    { "at": 6.0, "action": "primary_start" },
+    { "at": 7.0, "action": "aitum_start", "name": "Loopback A" },
+    { "at": 10.0, "action": "checkpoint", "name": "A_only",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1" },
+          "aitum:Loopback A": { "shown": "1", "present": "1" },
+          "aitum:Loopback B": { "shown": "0", "present": "0" }
+        }
+      } },
+    { "at": 11.5, "action": "aitum_start", "name": "Loopback B" },
+
+    { "at": 15, "action": "checkpoint", "name": "aitum_live",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1", "state": "Live", "present": "1", "kbps": ">300", "dropped": "0", "congestion": "!na", "connect": ">=0", "duration_ms": ">5000" },
+          "aitum:Loopback A": { "shown": "1", "state": "Live", "present": "1", "kbps": ">300", "dropped": "0", "total": ">0", "congestion": "!na", "connect": ">=0", "reconnects": "0" },
+          "aitum:Loopback B": { "shown": "1", "state": "Live", "present": "1", "kbps": ">200", "dropped": "0" }
+        },
+        "summary": { "rows": "3", "running": "3", "live": "3", "sum_kbps": ">900", "dropped": "0", "frames": ">0" }
+      } },
+    { "at": 16, "action": "screenshot", "file": "aitum-live.png" },
+
+    { "at": 26.5, "action": "checkpoint", "name": "server_down",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1", "state": "Reconnecting", "reconnects": ">=1", "health": "3" },
+          "aitum:Loopback A": { "shown": "1", "state": "Reconnecting", "reconnects": ">=1", "health": "3" },
+          "aitum:Loopback B": { "shown": "1", "state": "Reconnecting", "reconnects": ">=1" }
+        },
+        "summary": { "rows": "3", "reconnecting": "3", "overall": "3" }
+      } },
+    { "at": 27, "action": "screenshot", "file": "aitum-reconnecting.png" },
+
+    { "at": 38, "action": "checkpoint", "name": "server_back",
+      "expect": {
+        "rows": {
+          "primary": { "state": "Live", "reconnects": ">=1", "kbps": ">0" },
+          "aitum:Loopback A": { "state": "Live", "reconnects": ">=1", "kbps": ">0" },
+          "aitum:Loopback B": { "state": "Live", "reconnects": ">=1" }
+        },
+        "summary": { "live": "3", "reconnecting": "0" }
+      } },
+
+    { "at": 40, "action": "aitum_stop", "name": "Loopback B" },
+    { "at": 43, "action": "checkpoint", "name": "B_stopped",
+      "expect": {
+        "rows": {
+          "aitum:Loopback B": { "shown": "0", "state": "Stopped", "present": "0", "kbps": "na", "bytes": ">0", "duration_ms": ">20000", "code": "0" },
+          "aitum:Loopback A": { "shown": "1", "state": "Live", "kbps": ">0" },
+          "primary": { "shown": "1", "state": "Live" }
+        },
+        "summary": { "live": "2", "rows": "2" }
+      } },
+    { "at": 43.5, "action": "screenshot", "file": "aitum-B-stopped.png" },
+
+    { "at": 44, "action": "aitum_stop", "name": "Loopback A" },
+    { "at": 45, "action": "primary_stop" },
+    { "at": 49, "action": "checkpoint", "name": "all_stopped",
+      "expect": {
+        "rows": {
+          "aitum:Loopback A": { "shown": "0", "state": "Stopped", "present": "0" },
+          "aitum:Loopback B": { "shown": "0" },
+          "primary": { "shown": "1", "state": "Stopped" }
+        },
+        "summary": { "rows": "1", "running": "0", "live": "0", "sum_kbps": "na" }
+      } },
+    { "at": 49.5, "action": "screenshot", "file": "aitum-all-stopped.png" },
+
+    { "at": 50, "action": "aitum_start", "name": "Loopback A" },
+    { "at": 57, "action": "checkpoint", "name": "A_restarted",
+      "expect": {
+        "rows": {
+          "aitum:Loopback A": { "shown": "1", "state": "Live", "present": "1", "reconnects": "0", "duration_ms": "<8000", "kbps": ">0" },
+          "aitum:Loopback B": { "shown": "0" }
+        },
+        "summary": { "rows": "2" }
+      } },
+
+    { "at": 59, "action": "quit" }
+  ]
+}

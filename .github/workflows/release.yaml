@@ -1,0 +1,160 @@
+# Creates a DRAFT GitHub release from the packages of an already reviewed "Build and test" run.
+#
+# Safety:
+#  - Manual trigger only (workflow_dispatch). Pushes, pull requests and tags never run it.
+#  - The job uses the "release" environment: configure it (Settings > Environments) with the
+#    maintainer as required reviewer, so every run waits for an explicit approval.
+#  - It only creates or updates a DRAFT. Publishing is a separate, manual click in the GitHub UI.
+#  - Assets are the exact files of the reviewed build run (same commit as the tag), not a rebuild.
+#  - Windows assets are only accepted if the DLL inside them is listed for this version in
+#    packaging/windows/known-good-payloads.json (tested end to end).
+#
+# Typical use for 1.1.0 (Windows assets built locally from the pinned, tested DLL):
+#   1. mode=create-draft, windows_assets=attach-manually
+#   2. upload the two Windows files to the draft (gh release upload <tag> <files>)
+#   3. mode=refresh-checksums  (verifies the Windows ZIP pin, rewrites SHA256SUMS.txt and the notes)
+#   4. review the draft, then publish it by hand.
+name: Release (draft only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, e.g. v1.1.0
+        required: true
+      build_run_id:
+        description: Run ID of the reviewed, successful "Build and test" run of the tag's commit
+        required: true
+      mode:
+        description: create-draft, or refresh-checksums after attaching files to the draft
+        type: choice
+        options: [create-draft, refresh-checksums]
+        default: create-draft
+      windows_assets:
+        description: Where the Windows assets come from
+        type: choice
+        options: [attach-manually, from-build-run]
+        default: attach-manually
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: Draft release ${{ inputs.tag }}
+    runs-on: ubuntu-26.04
+    environment: release
+    permissions:
+      contents: write   # create/update the draft release
+      actions: read     # download the reviewed run's artifacts
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      RUN_ID: ${{ inputs.build_run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Preflight checks
+        id: pre
+        run: |
+          set -euo pipefail
+          name=$(jq -r .name buildspec.json); version=$(jq -r .version buildspec.json)
+          [[ "$TAG" == "v$version" ]] || { echo "::error::tag $TAG does not match buildspec version $version"; exit 1; }
+          [[ "$(jq -r .version data/manifest.json)" == "$version" ]] || { echo "::error::data/manifest.json version differs"; exit 1; }
+          bundle_id=$(jq -r .platformConfig.macos.bundleId buildspec.json)
+          [[ "$bundle_id" != com.example.* ]] || { echo "::error::placeholder macOS bundle identifier $bundle_id"; exit 1; }
+          [[ -n "$(jq -r .website buildspec.json)" ]] || { echo "::error::buildspec.json website (project URL) is empty"; exit 1; }
+          test -f "docs/release-notes/$version.md" || { echo "::error::docs/release-notes/$version.md missing"; exit 1; }
+          sha=$(git rev-parse "$TAG^{commit}")
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          [[ "$(jq -r .head_sha <<<"$run")" == "$sha" ]] || { echo "::error::run $RUN_ID did not build $TAG ($sha)"; exit 1; }
+          [[ "$(jq -r .name <<<"$run")" == "Build and test" ]] || { echo "::error::run $RUN_ID is not a 'Build and test' run"; exit 1; }
+          [[ "$(jq -r .conclusion <<<"$run")" == "success" ]] || { echo "::error::run $RUN_ID did not succeed"; exit 1; }
+          echo "name=$name" >> "$GITHUB_OUTPUT"; echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download the reviewed packages
+        if: inputs.mode == 'create-draft'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+          pattern: '*-packages'
+          path: ci
+
+      - name: Assemble release assets
+        if: inputs.mode == 'create-draft'
+        env:
+          NAME: ${{ steps.pre.outputs.name }}
+          VERSION: ${{ steps.pre.outputs.version }}
+          WINDOWS_ASSETS: ${{ inputs.windows_assets }}
+        run: |
+          set -euo pipefail
+          (cd ci/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
+          (cd ci/linux-packages && sha256sum -c SHA256SUMS-linux.txt)
+          mkdir release
+          cp ci/macos-packages/"$NAME-$VERSION"-macos-universal.dmg ci/macos-packages/"$NAME-$VERSION"-macos-universal-manual.zip release/
+          cp ci/macos-packages/"$NAME-$VERSION"-macos-universal-dSYMs.zip release/ 2>/dev/null || true
+          cp ci/linux-packages/"${NAME}_${VERSION}"_ubuntu-26.04_amd64.deb ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-manual.tar.xz \
+             ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-debug-symbols.tar.xz release/
+          if [[ "$WINDOWS_ASSETS" == from-build-run ]]; then
+            (cd ci/windows-packages && sha256sum -c SHA256SUMS-windows.txt)
+            cp ci/windows-packages/"$NAME-$VERSION"-windows-x64-installer.exe ci/windows-packages/"$NAME-$VERSION"-windows-x64-manual.zip release/
+          fi
+          git archive --format=tar --prefix="$NAME-$VERSION/" "$TAG" | xz -9 > "release/$NAME-$VERSION-source.tar.xz"
+
+      - name: Download the current draft
+        if: inputs.mode == 'refresh-checksums'
+        run: |
+          set -euo pipefail
+          [[ "$(gh release view "$TAG" --json isDraft -q .isDraft)" == "true" ]] || { echo "::error::$TAG is not a draft release"; exit 1; }
+          gh release download "$TAG" --dir release
+          rm -f release/SHA256SUMS.txt
+
+      - name: Verify Windows assets against the tested payload
+        env:
+          NAME: ${{ steps.pre.outputs.name }}
+          VERSION: ${{ steps.pre.outputs.version }}
+        run: |
+          set -euo pipefail
+          zip="release/$NAME-$VERSION-windows-x64-manual.zip"
+          if [[ ! -f "$zip" ]]; then echo "::notice::no Windows assets yet (attach them, then run refresh-checksums)"; exit 0; fi
+          test -f "release/$NAME-$VERSION-windows-x64-installer.exe" || { echo "::error::Windows ZIP without installer"; exit 1; }
+          mkdir -p win && unzip -q "$zip" -d win
+          for f in obs-multistream-stats.dll data/manifest.json data/locale/en-US.ini; do
+            want=$(jq -r --arg v "$VERSION" --arg f "$f" '.[$v].files[$f] // empty' packaging/windows/known-good-payloads.json)
+            got=$(sha256sum "win/$NAME/$f" | cut -d' ' -f1)
+            [[ -n "$want" && "$want" == "$got" ]] || { echo "::error::$f in the Windows ZIP is not the tested file for $VERSION"; exit 1; }
+          done
+          if find win -name '*.pdb' | grep -q .; then echo "::error::debug symbols in the Windows ZIP"; exit 1; fi
+          echo "Windows ZIP contains the tested $VERSION payload"
+
+      - name: Checksums and release notes
+        env:
+          VERSION: ${{ steps.pre.outputs.version }}
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum $(ls | sort) > ../SHA256SUMS.txt) && mv SHA256SUMS.txt release/
+          (cd release && sha256sum -c SHA256SUMS.txt)
+          { sed "s|{REPOSITORY}|$GITHUB_REPOSITORY|g" "docs/release-notes/$VERSION.md"
+            printf '\n## SHA-256 checksums\n\n```\n'; cat release/SHA256SUMS.txt; printf '```\n'; } > notes.md
+          if grep -q '{REPOSITORY}' notes.md; then echo "::error::unfilled placeholder in the notes"; exit 1; fi
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the draft release
+        if: inputs.mode == 'create-draft'
+        env:
+          VERSION: ${{ steps.pre.outputs.version }}
+        run: gh release create "$TAG" --draft --verify-tag --title "Multi-Stream Stats $VERSION" --notes-file notes.md release/*
+
+      - name: Update the draft's checksums and notes
+        if: inputs.mode == 'refresh-checksums'
+        run: |
+          gh release upload "$TAG" release/SHA256SUMS.txt --clobber
+          gh release edit "$TAG" --notes-file notes.md

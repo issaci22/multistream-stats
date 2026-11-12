@@ -1,0 +1,18 @@
+# Text files are stored with LF and checked out with LF on every platform, so CI builds on
+# Windows, macOS and Linux see identical sources (Git for Windows would otherwise convert to CRLF).
+* text=auto eol=lf
+
+# Shipped plugin data: never converted, so every platform packages byte-identical files
+# (data/manifest.json and data/locale/en-US.ini are part of the tested 1.1.0 payload).
+data/** -text
+
+# Vendored upstream files are kept exactly as published upstream (no whitespace checks)
+src/third_party/** -whitespace
+tests/third_party/** -whitespace
+
+# Binary files
+*.png binary
+*.ico binary
+*.icns binary
+*.dll binary
+*.exe binary

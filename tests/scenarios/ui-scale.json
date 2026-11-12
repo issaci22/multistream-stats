@@ -1,0 +1,37 @@
+{
+  "description": "UI review at a given QT_SCALE_FACTOR: mixed states (live, dropping, disconnected), several dock sizes, and the native OBS Stats dock for comparison.",
+  "steps": [
+    { "at": 2.0, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_YouTube Horizontal", "width": 1280, "height": 720, "bitrate": 2500, "gpu_scale": true },
+    { "at": 2.0, "action": "create", "id": "B", "type": "full", "name": "aitum_multi_output_Kick Output", "width": 854, "height": 480, "bitrate": 1200, "gpu_scale": true, "retries": 1, "retry_delay": 1 },
+    { "at": 2.0, "action": "create", "id": "C", "type": "basic", "name": "msd_srt_like_output", "bitrate": 800, "gpu_scale": false },
+    { "at": 2.5, "action": "start", "id": "A" },
+    { "at": 2.5, "action": "start", "id": "B" },
+    { "at": 2.5, "action": "start", "id": "C" },
+    { "at": 4.0, "action": "set", "id": "A", "drop_rate": 0.025, "congestion": 0.4 },
+    { "at": 7.0, "action": "set", "id": "B", "unreachable": true },
+    { "at": 7.2, "action": "disconnect", "id": "B" },
+
+    { "at": 13, "action": "show_dock", "width": 380, "height": 900, "x": 60, "y": 30 },
+    { "at": 14, "action": "checkpoint", "name": "mixed",
+      "expect": {
+        "rows": {
+          "aitum:YouTube Horizontal": { "state": "Live", "dropped": ">0", "health": ">=2" },
+          "aitum:Kick Output": { "state": "Disconnected", "health": "3" },
+          "output:msd_srt_like_output|127.0.0.1": { "state": "Live", "dropped": "na", "congestion": "na" }
+        }
+      } },
+    { "at": 14.5, "action": "screenshot", "file": "dock-380.png" },
+    { "at": 15.0, "action": "show_dock", "width": 260, "height": 900 },
+    { "at": 16.0, "action": "screenshot", "file": "dock-260.png" },
+    { "at": 16.5, "action": "show_dock", "width": 640, "height": 900 },
+    { "at": 17.5, "action": "screenshot", "file": "dock-640.png" },
+    { "at": 18.0, "action": "show_dock", "width": 1000, "height": 300, "x": 60, "y": 30 },
+    { "at": 19.5, "action": "probe_layout", "name": "wide-short",
+      "expect": { "found": "1", "wide": "1", "values_clipped": "0", "values_elided": "0", "values_offscreen": "0", "hscroll": "0", "overlaps": "0", "tips_missing": "0" } },
+    { "at": 19.6, "action": "screenshot", "file": "dock-1000x300.png" },
+    { "at": 20.0, "action": "show_dock", "dock": "statsDock", "width": 1000, "height": 300, "x": 60, "y": 360 },
+    { "at": 21.0, "action": "screenshot", "dock": "statsDock", "file": "native-stats.png" },
+    { "at": 22.0, "action": "screenshot", "dock": "main", "file": "main-window.png" },
+    { "at": 23.0, "action": "quit" }
+  ]
+}

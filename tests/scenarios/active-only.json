@@ -1,0 +1,106 @@
+{
+  "description": "1.1.0 active-only list with simulated Aitum-style outputs (created on start, released on stop; no network): idle -> A -> A+B -> stop B -> stop A -> restart A -> A fails (leaves the list, kept as last failure) -> A restarted (last failure cleared) and stopped normally. The OBS built-in stream row is shown, not streaming, at every checkpoint. Hidden rows are still logged (shown=0).",
+  "steps": [
+    { "at": 2.0, "action": "show_dock", "width": 360, "height": 900, "x": 60, "y": 30 },
+
+    { "at": 3.0, "action": "checkpoint", "name": "idle",
+      "expect": {
+        "rows": { "primary": { "shown": "1", "state": "Idle" } },
+        "summary": { "rows": "1", "running": "0", "live": "0", "overall": "0", "last_failure": "none" }
+      } },
+    { "at": 3.1, "action": "probe_layout", "name": "idle",
+      "expect": { "found": "1", "sections": "1", "values_clipped": "0", "values_elided": "0", "hscroll": "0", "overlaps": "0" } },
+    { "at": 3.2, "action": "screenshot", "file": "active-idle.png" },
+
+    { "at": 4.5, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_Dest A", "width": 1280, "height": 720, "bitrate": 1500, "gpu_scale": true },
+    { "at": 4.6, "action": "start", "id": "A" },
+    { "at": 8.0, "action": "checkpoint", "name": "A_live",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1", "state": "Idle" },
+          "aitum:Dest A": { "shown": "1", "state": "Live", "present": "1", "kbps": ">0" },
+          "aitum:Dest B": { "absent": true }
+        },
+        "summary": { "rows": "2", "running": "1", "live": "1" }
+      } },
+    { "at": 8.1, "action": "screenshot", "file": "active-A.png" },
+
+    { "at": 10.0, "action": "create", "id": "B", "type": "full", "name": "aitum_multi_output_Dest B", "width": 854, "height": 480, "bitrate": 1000, "gpu_scale": true },
+    { "at": 10.1, "action": "start", "id": "B" },
+    { "at": 14.0, "action": "checkpoint", "name": "A_B_live",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1" },
+          "aitum:Dest A": { "shown": "1", "state": "Live" },
+          "aitum:Dest B": { "shown": "1", "state": "Live", "kbps": ">0" }
+        },
+        "summary": { "rows": "3", "running": "2", "live": "2", "sum_kbps": ">0" }
+      } },
+    { "at": 14.1, "action": "probe_layout", "name": "A_B_live",
+      "expect": { "found": "1", "sections": "3", "values_clipped": "0", "values_elided": "0", "hscroll": "0", "overlaps": "0" } },
+    { "at": 14.2, "action": "screenshot", "file": "active-A-B.png" },
+
+    { "at": 16.0, "action": "stop", "id": "B" },
+    { "at": 16.3, "action": "release", "id": "B" },
+    { "at": 19.0, "action": "checkpoint", "name": "B_stopped",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1" },
+          "aitum:Dest A": { "shown": "1", "state": "Live", "kbps": ">0" },
+          "aitum:Dest B": { "shown": "0", "state": "Stopped", "present": "0" }
+        },
+        "summary": { "rows": "2", "live": "1" }
+      } },
+    { "at": 19.1, "action": "screenshot", "file": "active-B-stopped.png" },
+
+    { "at": 21.0, "action": "stop", "id": "A" },
+    { "at": 21.3, "action": "release", "id": "A" },
+    { "at": 24.0, "action": "checkpoint", "name": "all_stopped",
+      "expect": {
+        "rows": {
+          "primary": { "shown": "1", "state": "Idle" },
+          "aitum:Dest A": { "shown": "0", "state": "Stopped" },
+          "aitum:Dest B": { "shown": "0" }
+        },
+        "summary": { "rows": "1", "running": "0", "live": "0", "sum_kbps": "na", "overall": "0" }
+      } },
+    { "at": 24.1, "action": "probe_layout", "name": "all_stopped",
+      "expect": { "found": "1", "sections": "1", "values_clipped": "0", "hscroll": "0", "overlaps": "0" } },
+    { "at": 24.2, "action": "screenshot", "file": "active-all-stopped.png" },
+
+    { "at": 26.0, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_Dest A", "width": 1280, "height": 720, "bitrate": 1500, "gpu_scale": true, "retries": 1, "retry_delay": 1 },
+    { "at": 26.1, "action": "start", "id": "A" },
+    { "at": 31.0, "action": "checkpoint", "name": "A_restarted",
+      "expect": {
+        "rows": { "primary": { "shown": "1" }, "aitum:Dest A": { "shown": "1", "state": "Live", "reconnects": "0", "duration_ms": "<8000" } },
+        "summary": { "rows": "2", "live": "1" }
+      } },
+
+    { "at": 33.0, "action": "set", "id": "A", "unreachable": true },
+    { "at": 33.2, "action": "disconnect", "id": "A" },
+    { "at": 38.0, "action": "checkpoint", "name": "A_failed",
+      "expect": {
+        "rows": { "primary": { "shown": "1" }, "aitum:Dest A": { "shown": "0", "state": "Disconnected", "code": "-5", "health": "3" } },
+        "summary": { "rows": "1", "running": "0", "failed": "0", "overall": "0", "last_failure": "aitum:Dest A" }
+      } },
+    { "at": 38.1, "action": "screenshot", "file": "active-A-failed.png" },
+    { "at": 38.2, "action": "probe_layout", "name": "A_failed",
+      "expect": { "found": "1", "sections": "1", "values_clipped": "0", "values_elided": "0", "hscroll": "0", "overlaps": "0", "tips_missing": "0" } },
+    { "at": 39.0, "action": "release", "id": "A" },
+    { "at": 41.0, "action": "checkpoint", "name": "A_failed_released",
+      "expect": { "rows": { "aitum:Dest A": { "shown": "0", "state": "Disconnected", "present": "0" } }, "summary": { "rows": "1", "last_failure": "aitum:Dest A" } } },
+
+    { "at": 43.0, "action": "create", "id": "A", "type": "full", "name": "aitum_multi_output_Dest A", "width": 1280, "height": 720, "bitrate": 1500, "gpu_scale": true },
+    { "at": 43.1, "action": "start", "id": "A" },
+    { "at": 47.0, "action": "checkpoint", "name": "A_recovered",
+      "expect": { "rows": { "aitum:Dest A": { "shown": "1", "state": "Live" } }, "summary": { "rows": "2", "failed": "0", "last_failure": "none" } } },
+    { "at": 49.0, "action": "stop", "id": "A" },
+    { "at": 49.3, "action": "release", "id": "A" },
+    { "at": 52.0, "action": "checkpoint", "name": "A_stopped_normally",
+      "expect": {
+        "rows": { "primary": { "shown": "1", "state": "Idle" }, "aitum:Dest A": { "shown": "0", "state": "Stopped" } },
+        "summary": { "rows": "1", "running": "0", "failed": "0", "last_failure": "none" }
+      } },
+    { "at": 53.0, "action": "quit" }
+  ]
+}

@@ -1,0 +1,72 @@
+# Exclude everything
+/*
+
+# Except project files
+!/.github
+!/cmake
+!/data
+!/docs
+!/packaging
+!/src
+!/tests
+!/tools
+!.clang-format
+!.gitattributes
+!.gitignore
+!buildspec.json
+!CMakeLists.txt
+!CMakePresets.json
+!LICENSE
+!README.md
+!INSTALL.md
+!BUILDING.md
+!COMPATIBILITY.md
+!CHANGELOG.md
+!ARCHITECTURE.md
+!THIRD-PARTY-NOTICES.md
+
+# Screenshots: only the images the README shows are published
+/docs/*.png
+!/docs/v110-two-active.png
+!/docs/v110-docked-bottom.png
+
+# Never published, in any folder (these rules come after the allowlist so they always win)
+CLAUDE.md
+HANDOVER.md
+TESTING.md
+FINDINGS.md
+.claude/
+*.pdb
+*.log
+*.dmp
+*.bak
+
+# Private working notes: they describe the maintainer's own PC, OBS installation and
+# streaming setup, so they stay local and are never published.
+#   CLAUDE.md, HANDOVER.md, TESTING.md, FINDINGS.md (excluded by /* above)
+# Scripts that only drive the maintainer's own OBS installation:
+/tools/phase7-run.ps1
+/tools/phase9-run.ps1
+/tools/phase9-verify.ps1
+# UI automation of a running OBS (used only by the scripts above)
+/tools/ui-driver.ps1
+/tools/verify-dock-ui.ps1
+
+# install\ holds the install manifest and a config backup with secrets: never commit
+/install
+
+# Generated / local (also covered by /* above, listed for clarity)
+/.deps
+/.tools
+/artifacts
+/build_*
+/dist
+/logs
+/releases
+/test-env
+
+# Exclude lock files
+*.lock.json
+
+# Exclude CMake build number cache
+/cmake/.CMakeBuildNumber
