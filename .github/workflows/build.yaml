@@ -254,7 +254,9 @@ jobs:
           done
           for f in results/*/hang-sample.txt; do
             # Main thread first: the start of the call graph shows where the process was stuck.
-            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            awk '/Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || head -n 70 "$f" | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || echo "(sample file is empty)" > "$RUNNER_TEMP/hang.txt"
             m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
@@ -429,7 +431,9 @@ jobs:
           done
           for f in results/*/hang-sample.txt; do
             # Main thread first: the start of the call graph shows where the process was stuck.
-            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            awk '/Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || head -n 70 "$f" | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || echo "(sample file is empty)" > "$RUNNER_TEMP/hang.txt"
             m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
@@ -535,6 +539,9 @@ jobs:
           - arch: x86_64
             runner: macos-26-intel
             dmg: intel
+          - arch: x86_64-macos15
+            runner: macos-15-intel
+            dmg: intel
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -628,7 +635,9 @@ jobs:
           done
           for f in results/*/hang-sample.txt; do
             # Main thread first: the start of the call graph shows where the process was stuck.
-            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            awk '/Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || head -n 70 "$f" | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            [ -s "$RUNNER_TEMP/hang.txt" ] || echo "(sample file is empty)" > "$RUNNER_TEMP/hang.txt"
             m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
