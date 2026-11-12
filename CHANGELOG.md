@@ -4,11 +4,10 @@
 
 Plugin build of 2026-11-09 for OBS Studio 33. The first version published on GitHub.
 
-### Downloads for Windows, macOS and Linux
-- **Windows x64:** installer (standard OBS installations and portable OBS folders, upgrade and uninstall that keep your settings) and a manual ZIP.
-- **macOS 13+ universal** (Apple Silicon and Intel in one binary): DMG with an installer package, and a manual ZIP with the `.plugin` bundle.
-- **Ubuntu 26.04 x86_64:** `.deb` package; other distributions: manual `.tar.xz` (not tested).
-- The plugin's code is the same on every platform. The Windows packages contain exactly the DLL that passed the isolated regression and installer tests before release. See [COMPATIBILITY.md](COMPATIBILITY.md) for what has been verified on each platform.
+### Packages
+- **Windows x64 (included in 1.1.0):** installer (standard OBS installations and portable OBS folders, upgrade and uninstall that keep your settings) and a manual ZIP. The Windows packages contain exactly the DLL that passed the isolated regression and installer tests before release.
+- **macOS and Linux (planned, not available):** packages for macOS 13+ (universal: Apple Silicon and Intel), Ubuntu 26.04 x86_64 (`.deb`) and other x86_64 distributions (manual `.tar.xz`) are pending cross-platform build and testing verification. They are not part of this release and will be published only after their automated builds and tests pass.
+- The plugin's source code is the same for every platform. See [COMPATIBILITY.md](COMPATIBILITY.md) for what has been verified on each platform.
 
 ### Only active outputs are listed (OBS's own stream always)
 - OBS's own stream is always listed, in every state.
