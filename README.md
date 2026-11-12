@@ -14,16 +14,18 @@ OBS's built-in Stats dock only covers the primary stream. This dock also covers 
 
 ## Download
 
+> **Release status:** no release has been published yet. Version 1.1.0 for **Windows** has passed its tests and is being prepared for release. **macOS and Linux** packages are planned: they are built and tested by the project's automated builds, and they will be offered only after those builds and tests pass. Until then, macOS and Linux are not supported. [COMPATIBILITY.md](COMPATIBILITY.md) shows what has been verified so far.
+
 **[Download the latest release](../../releases/latest)**. You need **OBS Studio 33** or newer.
 
 | Your computer | Download | Notes |
 |---|---|---|
 | **Windows 10/11** (64-bit) | `obs-multistream-stats-<version>-windows-x64-installer.exe` | Recommended. Works with a standard OBS installation and with portable OBS folders. |
 | | `obs-multistream-stats-<version>-windows-x64-manual.zip` | Copy the files yourself ([how](INSTALL.md#windows-manual-zip)). |
-| **macOS 13+** (Apple Silicon and Intel) | `obs-multistream-stats-<version>-macos-universal.dmg` | Recommended. Open it and run the installer inside. One download for all Macs. |
-| | `obs-multistream-stats-<version>-macos-universal-manual.zip` | The `.plugin` bundle to copy yourself ([how](INSTALL.md#macos-manual-zip)). |
-| **Ubuntu 26.04** (x86_64) | `obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb` | For OBS Studio 33 from the official OBS PPA. |
-| **Other Linux** (x86_64) | `obs-multistream-stats-<version>-linux-x86_64-manual.tar.xz` | Per-user install; not tested outside Ubuntu ([details](COMPATIBILITY.md)). |
+| **macOS 13+** (Apple Silicon and Intel) | `obs-multistream-stats-<version>-macos-universal.dmg` | **Planned, in testing.** Open it and run the installer inside. One download for all Macs. |
+| | `obs-multistream-stats-<version>-macos-universal-manual.zip` | **Planned, in testing.** The `.plugin` bundle to copy yourself ([how](INSTALL.md#macos-manual-zip)). |
+| **Ubuntu 26.04** (x86_64) | `obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb` | **Planned, in testing.** For OBS Studio 33 from the official OBS PPA. |
+| **Other Linux** (x86_64) | `obs-multistream-stats-<version>-linux-x86_64-manual.tar.xz` | **Planned, in testing.** Per-user install; will not be tested outside Ubuntu ([details](COMPATIBILITY.md)). |
 | OBS from **Flatpak** | – | Not supported yet ([why](COMPATIBILITY.md#flatpak)). |
 
 Each release lists SHA-256 checksums in `SHA256SUMS.txt`. The packages are **not code-signed** yet: Windows SmartScreen and macOS Gatekeeper show a warning the first time. [INSTALL.md](INSTALL.md) explains what to click.
@@ -33,8 +35,8 @@ Each release lists SHA-256 checksums in `SHA256SUMS.txt`. The packages are **not
 Close OBS Studio first.
 
 - **Windows:** run the installer. It asks whether you use a **standard** OBS installation (installer or Steam) or a **portable** OBS folder, and finds your OBS if it can. Portable OBS installs need no administrator rights.
-- **macOS:** open the DMG, double-click **Install Multi-Stream Stats.pkg**. It installs for your user account.
-- **Ubuntu 26.04:** `sudo apt install ./obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb`
+- **macOS** (once released): open the DMG, double-click **Install Multi-Stream Stats.pkg**. It installs for your user account.
+- **Ubuntu 26.04** (once released): `sudo apt install ./obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb`
 
 Then start OBS and open **Docks → Multi-Stream Statistics**.
 

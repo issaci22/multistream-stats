@@ -13,6 +13,8 @@
 
 ## Platforms and packages
 
+macOS and Linux are **planned, not yet released or supported**. Their rows describe the packages being built and tested. They will be released only when the verification table below shows them passing.
+
 | Platform | Architecture | Packages | Installs into |
 |---|---|---|---|
 | Windows 10 / 11 | x64 | Installer (.exe), manual ZIP | standard OBS: `C:\ProgramData\obs-studio\plugins\`; portable OBS: `<OBS folder>\plugins\` |

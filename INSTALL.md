@@ -1,5 +1,7 @@
 # Installing Multi-Stream Stats
 
+> **macOS and Linux packages are not released yet.** Their sections below describe how they will install once their automated builds and tests pass. Until then only Windows is supported. See [COMPATIBILITY.md](COMPATIBILITY.md).
+
 - [Before you start](#before-you-start)
 - [Windows: installer](#windows-installer) · [Windows: manual ZIP](#windows-manual-zip)
 - [macOS: DMG installer](#macos-dmg-installer) · [macOS: manual ZIP](#macos-manual-zip)
