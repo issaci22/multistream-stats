@@ -56,7 +56,10 @@ The Windows DLL in the 1.1.0 packages (SHA-256 `a4db862a…8e680c60da`, listed i
 The manual archive contains the same binary as the Ubuntu package. It may work on another x86_64 distribution if all of these hold:
 - OBS Studio **33.x** installed natively, providing `libobs.so.30` and `libobs-frontend-api.so.30` like the official OBS PPA package (check with `ldd`),
 - Qt **6.10** or newer (`libQt6Core.so.6`, `libQt6Gui.so.6`, `libQt6Widgets.so.6`),
-- a C/C++ runtime at least as new as Ubuntu 26.04's (the minimum glibc version is printed in the archive's `INSTALL.txt`).
+- glibc **2.14** or newer (the C library),
+- libstdc++ with `GLIBCXX_3.4.29`, i.e. from GCC **11.1** or newer (the C++ runtime).
+
+These are the minimum versions the plugin binary requires (from the dependency audit of the 1.1.0 build); Ubuntu 26.04 ships newer versions of all of them. The archive's `INSTALL.txt` lists the same requirements.
 
 This is not tested. Reports (working or not) are welcome as issues; please include your distribution, OBS version and log.
 

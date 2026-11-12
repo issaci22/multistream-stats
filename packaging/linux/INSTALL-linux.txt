@@ -5,9 +5,14 @@ Requirements
 ------------
 - OBS Studio 33.x, installed natively (not the Flatpak; see "Flatpak" below).
 - Tested: Ubuntu 26.04 x86_64 with OBS Studio 33 from the official OBS PPA.
-- Other distributions: may work if they ship OBS Studio 33.x built with Qt 6.10 or
-  newer and a C library at least as new as Ubuntu 26.04's (glibc {GLIBC}).
-  Not tested; please report your results on the project page.
+- Other distributions: may work if they provide all of these (not tested; please
+  report your results on the project page):
+    - OBS Studio 33.x, installed natively;
+    - Qt 6.10 or newer (Core, Gui, Widgets);
+    - glibc {GLIBC} or newer (the C library);
+    - libstdc++ with GLIBCXX_3.4.29, i.e. from GCC 11.1 or newer (the C++ runtime).
+  These are the minimum versions the plugin binary requires. Ubuntu 26.04, where it
+  is tested, ships newer versions of all of them.
 
 On Ubuntu 26.04 the .deb package is easier: obs-multistream-stats_{VERSION}_ubuntu-26.04_amd64.deb.
 
