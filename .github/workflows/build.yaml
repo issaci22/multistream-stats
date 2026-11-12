@@ -35,6 +35,11 @@ env:
   OBS_MACOS_APPLE_DMG_SHA256: 3d6b2eedeb56416602af635adaba32327fdf11ff9d2806a4ce7d5b608de73238
   OBS_MACOS_INTEL_DMG_URL: https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-macOS-Intel.dmg
   OBS_MACOS_INTEL_DMG_SHA256: 745257d65e06eb0f784af229659223a863ad50d036464bb2b52f8a2d9278c2b1
+  # OBS Studio 33 for Ubuntu 26.04 from the official OBS PPA. The PPA builds it as plain amd64 only, while the
+  # runner's apt reads amd64v3 package indexes and never sees the PPA, so the .deb is installed directly
+  # (SHA-256 as published by Launchpad for this file); apt resolves its dependencies from Ubuntu.
+  OBS_UBUNTU_DEB_URL: https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio/+files/obs-studio_33.0.0-0obsproject3~resolute_amd64.deb
+  OBS_UBUNTU_DEB_SHA256: 161fcb3f15ba21d504d452bc21f0eaa37b81b4b535b09c7d5feac505bbb41bb9
   INNO_SETUP_URL: https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe
   INNO_SETUP_SHA256: a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c
 
@@ -243,7 +248,8 @@ jobs:
             report error "$f" "$f"; n=$((n + 1))
           done
           for f in results/*/obs.log; do
-            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            { grep -iE 'multistream|msd-mock|error|fail|unable|could not' "$f" | grep -viE "module '(aja|decklink)|decklink|vlc" | tail -n 25
+              echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
@@ -269,18 +275,16 @@ jobs:
           mkdir -p ci-logs
           # Job logs need a sign-in to read; annotations are public. Report apt's own output there.
           report() { local m; m=$(tail -c 3500 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
-          sudo add-apt-repository --yes ppa:obsproject/obs-studio
-          # Always take obs-studio from the official OBS PPA (Ubuntu's own archive has an older major version).
-          printf 'Package: obs-studio\nPin: release o=LP-PPA-obsproject-obs-studio\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/obs-studio-ppa
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/obs-studio.deb" "$OBS_UBUNTU_DEB_URL"
+          echo "$OBS_UBUNTU_DEB_SHA256  $RUNNER_TEMP/obs-studio.deb" | sha256sum -c
           sudo apt-get update
-          apt-cache policy obs-studio > ci-logs/linux-obs-policy.txt 2>&1
-          report notice 'apt policy obs-studio' ci-logs/linux-obs-policy.txt
-          if ! sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev libgles2-mesa-dev \
+          if ! sudo apt-get install -y --no-install-recommends "$RUNNER_TEMP/obs-studio.deb" qt6-base-dev qt6-base-private-dev libgles2-mesa-dev \
               libsimde-dev build-essential cmake ninja-build pkg-config jq lintian file dpkg-dev > ci-logs/linux-apt-install.log 2>&1; then
             report error 'apt-get install failed' ci-logs/linux-apt-install.log; exit 1
           fi
           v=$(dpkg-query -W -f='${Version}' obs-studio); v=${v#*:}
           echo "obs-studio $v" | tee ci-logs/linux-obs-package.txt
+          apt-cache policy obs-studio > ci-logs/linux-obs-policy.txt 2>&1
           if ! { dpkg --compare-versions "$v" ge 33 && dpkg --compare-versions "$v" lt 34; }; then
             report error "OBS Studio $v is not 33.x (apt policy)" ci-logs/linux-obs-policy.txt; exit 1
           fi
@@ -356,10 +360,12 @@ jobs:
       - name: Install OBS Studio 33 (official PPA), Xvfb and PowerShell
         run: |
           report() { local m; m=$(tail -c 3500 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
-          sudo add-apt-repository --yes ppa:obsproject/obs-studio
-          printf 'Package: obs-studio\nPin: release o=LP-PPA-obsproject-obs-studio\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/obs-studio-ppa
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/obs-studio.deb" "$OBS_UBUNTU_DEB_URL"
+          echo "$OBS_UBUNTU_DEB_SHA256  $RUNNER_TEMP/obs-studio.deb" | sha256sum -c
           sudo apt-get update
-          if ! sudo apt-get install -y obs-studio xvfb xauth mesa-utils libgl1-mesa-dri dbus-x11 > "$RUNNER_TEMP/apt-install.log" 2>&1; then
+          # Tests must not depend on outside servers (OBS's service-list update can stall without a reply).
+          echo '127.0.0.1 obsproject.com' | sudo tee -a /etc/hosts
+          if ! sudo apt-get install -y "$RUNNER_TEMP/obs-studio.deb" xvfb xauth mesa-utils libgl1-mesa-dri dbus-x11 > "$RUNNER_TEMP/apt-install.log" 2>&1; then
             report error 'apt-get install failed' "$RUNNER_TEMP/apt-install.log"; exit 1
           fi
           v=$(dpkg-query -W -f='${Version}' obs-studio); echo "obs-studio $v"
@@ -412,7 +418,8 @@ jobs:
             report error "$f" "$f"; n=$((n + 1))
           done
           for f in results/*/obs.log; do
-            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            { grep -iE 'multistream|msd-mock|error|fail|unable|could not' "$f" | grep -viE "module '(aja|decklink)|decklink|vlc" | tail -n 25
+              echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
@@ -543,6 +550,11 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/OBS.app/Contents/Info.plist
           (cd pkg && shasum -a 256 -c SHA256SUMS-macos.txt)
           chmod +x "$RUNNER_TEMP/test-env/plugins/msd-mock-outputs.plugin/Contents/MacOS/"*
+          # The test-only mock plugin is never packaged, so it was never signed; Apple Silicon refuses unsigned code.
+          codesign --force --sign - "$RUNNER_TEMP/test-env/plugins/msd-mock-outputs.plugin"
+          codesign --verify --verbose "$RUNNER_TEMP/test-env/plugins/msd-mock-outputs.plugin"
+          # Tests must not depend on outside servers: OBS's service-list update stalled for 75 s on the runner.
+          echo '127.0.0.1 obsproject.com' | sudo tee -a /etc/hosts
 
       - name: Test the DMG installer, then the manual ZIP
         run: |
@@ -600,7 +612,8 @@ jobs:
             report error "$f" "$f"; n=$((n + 1))
           done
           for f in results/*/obs.log; do
-            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            { grep -iE 'multistream|msd-mock|error|fail|unable|could not' "$f" | grep -viE "module '(aja|decklink)|decklink|vlc" | tail -n 25
+              echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."

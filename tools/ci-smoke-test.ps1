@@ -175,7 +175,9 @@ $newCrashes = @($crashesAfter | Where-Object { $crashesBefore -notcontains $_ })
 if ($ControlRun) {
     Write-NoBom (Join-Path $Out 'leaks.txt') "$leaks"
     $loadedOurs = [bool]($text -match '\[multistream-stats\] loaded version')
-    "control run: exited=$exited exit_code=$exitCode leaks=$leaks plugin_present=$loadedOurs"
+    $line = "control run: exited=$exited exit_code=$exitCode leaks=$leaks plugin_present=$loadedOurs timeout=${TimeoutSec}s duration=$('{0:N0}' -f ((Get-Date) - $started).TotalSeconds)s"
+    Write-NoBom (Join-Path $Out 'summary.txt') "$line`n"
+    $line
     if ($loadedOurs) { throw 'Control run must not load obs-multistream-stats' }
     if (-not $exited -or $leaks -lt 0) { throw 'Control run did not finish cleanly' }
     return
