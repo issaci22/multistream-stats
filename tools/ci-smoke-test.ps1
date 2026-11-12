@@ -157,7 +157,11 @@ $proc = [System.Diagnostics.Process]::Start($psi)
 $stdout = $proc.StandardOutput.ReadToEndAsync()
 $stderr = $proc.StandardError.ReadToEndAsync()
 $exited = $proc.WaitForExit($TimeoutSec * 1000)
-if (-not $exited) { $proc.Kill($true); $proc.WaitForExit() }
+if (-not $exited) {
+    # Record where the hung process is stuck before killing it (macOS: Apple's sample tool).
+    if ($IsMacOS -and (Test-Path /usr/bin/sample)) { & /usr/bin/sample $proc.Id 3 -mayDie -file (Join-Path $Out 'hang-sample.txt') *> $null }
+    $proc.Kill($true); $proc.WaitForExit()
+}
 $exitCode = $proc.ExitCode
 Write-NoBom (Join-Path $Out 'obs-stdout.txt') $stdout.Result
 Write-NoBom (Join-Path $Out 'obs-stderr.txt') $stderr.Result

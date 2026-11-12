@@ -69,7 +69,15 @@ echo "== dependency audit"
 } | tee "$out_dir/linux-dependency-audit.txt"
 if readelf -d "$so_sys" | grep -qE 'RPATH|RUNPATH'; then echo "::error::unexpected RPATH/RUNPATH"; exit 1; fi
 if ldd "$so_sys" | grep -q 'not found'; then echo "::error::unresolved libraries"; exit 1; fi
-readelf -d "$so_sys" | grep -q 'libobs.so.33' || { echo "::error::not linked against libobs.so.33"; exit 1; }
+needed=$(readelf -d "$so_sys" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | paste -sd ' ' -)
+libobs_soname=$(printf '%s\n' $needed | grep -E '^libobs\.so' | head -n1)
+[[ -n "$libobs_soname" ]] || { echo "::error::not linked against libobs (NEEDED: $needed)"; exit 1; }
+libobs_path=$(ldd "$so_sys" | awk -v s="$libobs_soname" '$1 == s { print $3 }')
+libobs_pkg=$(dpkg -S "$(readlink -f "$libobs_path")" 2>/dev/null | cut -d: -f1 | head -n1)
+libobs_pkg_version=$(dpkg-query -W -f='${Version}' "$libobs_pkg" 2>/dev/null)
+echo "::notice title=libobs link::$libobs_soname -> $libobs_path (package $libobs_pkg $libobs_pkg_version); NEEDED: $needed"
+[[ "$libobs_pkg" == obs-studio ]] && dpkg --compare-versions "${libobs_pkg_version#*:}" ge 33 && dpkg --compare-versions "${libobs_pkg_version#*:}" lt 34 ||
+  { echo "::error::libobs ($libobs_soname -> $libobs_path) is not from obs-studio 33.x (package: '$libobs_pkg' '$libobs_pkg_version')"; exit 1; }
 glibc_max=$(objdump -T "$so_sys" | grep -oE 'GLIBC_[0-9.]+' | sort -Vu | tail -1 | sed 's/GLIBC_//')
 
 echo "== .deb"
@@ -121,7 +129,7 @@ ${project_url:+Homepage: $project_url
  congestion, connection details) for OBS Studio's own stream and for multistream plugins such as
  Aitum Multistream, plus OBS-wide rendering, encoding and system performance.
  .
- Built for OBS Studio 33.x (libobs.so.33) on Ubuntu 26.04.
+ Built for OBS Studio 33.x on Ubuntu 26.04.
 EOF
 find "$work/deb" -type d -exec chmod 0755 {} +
 (cd "$work/deb" && find usr -type f -print0 | sort -z | xargs -0 md5sum) > "$work/deb/DEBIAN/md5sums"

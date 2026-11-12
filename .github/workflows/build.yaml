@@ -252,6 +252,11 @@ jobs:
               echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
           done
+          for f in results/*/hang-sample.txt; do
+            # Main thread first: the start of the call graph shows where the process was stuck.
+            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
+          done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
 
       - name: Upload results
@@ -421,6 +426,11 @@ jobs:
             { grep -iE 'multistream|msd-mock|error|fail|unable|could not' "$f" | grep -viE "module '(aja|decklink)|decklink|vlc" | tail -n 25
               echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
+          done
+          for f in results/*/hang-sample.txt; do
+            # Main thread first: the start of the call graph shows where the process was stuck.
+            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
 
@@ -615,6 +625,11 @@ jobs:
             { grep -iE 'multistream|msd-mock|error|fail|unable|could not' "$f" | grep -viE "module '(aja|decklink)|decklink|vlc" | tail -n 25
               echo '--- last lines ---'; tail -n 15 "$f"; } > "$RUNNER_TEMP/obs-excerpt.txt" || true
             [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
+          done
+          for f in results/*/hang-sample.txt; do
+            # Main thread first: the start of the call graph shows where the process was stuck.
+            awk '/^Call graph:/{f=1} f' "$f" | head -n 70 | cut -c1-160 > "$RUNNER_TEMP/hang.txt"
+            m=$(cat "$RUNNER_TEMP/hang.txt"); m=${m//'%'/'%25'}; m=${m//$'\n'/'%0A'}; echo "::error title=$f (main thread)::$m"
           done
           [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
 
