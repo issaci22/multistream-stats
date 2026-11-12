@@ -1,4 +1,6 @@
-# Build, unit-test, package and smoke-test Multi-Stream Stats on Windows, macOS and Linux.
+# Build, unit-test, package and smoke-test Multi-Stream Stats on Windows x64 and Ubuntu 26.04 x86_64,
+# the release targets. macOS is postponed: its jobs are kept, but they run only when this workflow is
+# started by hand (or called) with include_macos, so pushes and pull requests never request a macOS runner.
 # This workflow never publishes anything: packages are uploaded as workflow artifacts for inspection only.
 # Publishing is done by release.yaml (manual trigger + approval of the "release" environment).
 name: Build and test
@@ -11,11 +13,24 @@ on:
     paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**', 'LICENSE']
   workflow_dispatch:
     inputs:
+      include_macos:
+        description: Also build and test macOS (postponed; needs an Apple Silicon runner)
+        type: boolean
+        default: false
       macos_smoke:
-        description: Run the macOS runtime smoke tests (Apple Silicon)
+        description: With include_macos, also run the macOS runtime smoke tests
         type: boolean
         default: true
   workflow_call:
+    inputs:
+      include_macos:
+        description: Also build and test macOS (postponed; needs an Apple Silicon runner)
+        type: boolean
+        default: false
+      macos_smoke:
+        description: With include_macos, also run the macOS runtime smoke tests
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -136,8 +151,9 @@ jobs:
     name: Windows x64 - installer and OBS loading tests
     needs: windows
     runs-on: windows-2025-vs2026
-    # Runs OBS without a GPU (Microsoft Basic Render Driver); failures are reported but do not block.
-    continue-on-error: true
+    # Runs OBS without a GPU (Microsoft Basic Render Driver). A failure fails the run: these are release
+    # checks for the Windows installer (standard OBS installs are tested only here), and release.yaml
+    # accepts only successful runs.
     defaults:
       run:
         shell: pwsh
@@ -446,8 +462,11 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------------------------
+  # macOS is postponed (not a release target yet). These jobs run only when the workflow is started
+  # with include_macos; on pushes and pull requests they are skipped without requesting a runner.
   macos:
     name: macOS Apple Silicon - build, unit tests, package
+    if: inputs.include_macos
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -516,11 +535,10 @@ jobs:
 
   # ---------------------------------------------------------------------------------------------
   macos-smoke:
-    name: macOS ${{ matrix.arch }} - installer and OBS loading tests
+    name: macOS Apple Silicon - installer and OBS loading tests
     needs: macos
-    # Runs on every push and pull request (standard runners are free on public repositories);
-    # manual runs can switch it off.
-    if: github.event_name != 'workflow_dispatch' || inputs.macos_smoke
+    # Only with include_macos (see the macos job); macos_smoke can switch the runtime tests off.
+    if: inputs.include_macos && inputs.macos_smoke
     strategy:
       fail-fast: false
       matrix:
@@ -642,6 +660,9 @@ jobs:
   checksums:
     name: Checksums of all CI packages
     needs: [windows, linux, macos]
+    # Windows and Linux must have succeeded. macOS is skipped unless include_macos was set; when it
+    # runs, this job waits for it and requires it to succeed.
+    if: ${{ !cancelled() && needs.windows.result == 'success' && needs.linux.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.macos.result) }}
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -651,9 +672,11 @@ jobs:
       - name: Verify per-platform checksums and write a combined list
         run: |
           set -euo pipefail
-          (cd all/windows-packages && sha256sum -c SHA256SUMS-windows.txt)
-          (cd all/linux-packages && sha256sum -c SHA256SUMS-linux.txt)
-          (cd all/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
+          for p in windows linux; do
+            test -f "all/$p-packages/SHA256SUMS-$p.txt" || { echo "::error::$p packages or their checksum list are missing"; exit 1; }
+            (cd "all/$p-packages" && sha256sum -c "SHA256SUMS-$p.txt")
+          done
+          if [[ -d all/macos-packages ]]; then (cd all/macos-packages && sha256sum -c SHA256SUMS-macos.txt); fi
           (cd all && find . -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.dmg' -o -name '*.pkg' -o -name '*.deb' -o -name '*.tar.xz' \) \
               -printf '%P\n' | sort | xargs sha256sum) | tee SHA256SUMS-ci.txt
           echo '### CI packages (not release assets)' >> "$GITHUB_STEP_SUMMARY"

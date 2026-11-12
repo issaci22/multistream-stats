@@ -1,20 +1,18 @@
 # Installing Multi-Stream Stats
 
-> **macOS and Linux packages are not released yet.** Their sections below describe how they will install once their automated builds and tests pass. Until then only Windows is supported. See [COMPATIBILITY.md](COMPATIBILITY.md).
+> **Packages:** Windows x64 and Linux x86_64 (tested on Ubuntu 26.04). macOS support is planned for a future release. Development and compatibility testing are not yet complete. No release date is currently available. See [COMPATIBILITY.md](COMPATIBILITY.md).
 
 - [Before you start](#before-you-start)
 - [Windows: installer](#windows-installer) · [Windows: manual ZIP](#windows-manual-zip)
-- [macOS: DMG installer](#macos-dmg-installer) · [macOS: manual ZIP](#macos-manual-zip)
-- [Linux: .deb (Ubuntu 26.04)](#linux-deb-ubuntu-2604) · [Linux: manual archive](#linux-manual-archive) · [Flatpak](#flatpak)
+- [Linux: .deb (Ubuntu 26.04)](#linux-deb-ubuntu-2604) · [Linux: manual archive](#linux-manual-archive) · [Flatpak](#flatpak) · [macOS](#macos)
 - [Check the installation](#check-the-installation) · [Upgrading](#upgrading) · [Uninstalling](#uninstalling) · [Troubleshooting](#troubleshooting)
 
 ## Before you start
 
-- You need **OBS Studio 33** or newer (Help → About shows your version). Builds for OBS 33 do not load in older versions.
+- You need **OBS Studio 33** (33.x; Help → About shows your version). Builds for OBS 33 do not load in older versions.
 - **Close OBS Studio** before installing, upgrading or uninstalling.
 - Download from the project's **Releases** page. Optionally compare the file's SHA-256 with `SHA256SUMS.txt`:
   - Windows (PowerShell): `Get-FileHash <file>`
-  - macOS: `shasum -a 256 <file>`
   - Linux: `sha256sum <file>`
 - The plugin never changes your OBS settings, scenes, profiles or stream keys. It keeps its own small settings file (which sections are collapsed) in OBS's `plugin_config/obs-multistream-stats/` folder; installers and uninstallers never touch it.
 
@@ -24,7 +22,6 @@
 |---|---|
 | Windows, standard (installer or Steam) | `C:\ProgramData\obs-studio\plugins\obs-multistream-stats\` |
 | Windows, portable (ZIP download) | `<OBS folder>\plugins\obs-multistream-stats\` |
-| macOS | `~/Library/Application Support/obs-studio/plugins/obs-multistream-stats.plugin` |
 | Linux, system package (.deb) | `/usr/lib/x86_64-linux-gnu/obs-modules/plugins/obs-multistream-stats.so` and `/usr/share/obs/obs-modules/plugins/obs-multistream-stats/` |
 | Linux, current user | `~/.local/share/obs-studio/plugins/obs-multistream-stats/` |
 | Any system, custom folder | the folder named by the `OBS_PLUGINS_PATH` environment variable (advanced) |
@@ -75,54 +72,41 @@ File: `obs-multistream-stats-<version>-windows-x64-manual.zip`. It contains the 
 3. Check that this file exists: `...\plugins\obs-multistream-stats\obs-multistream-stats.dll`.
 4. Start OBS and open **Docks → Multi-Stream Statistics**.
 
-## macOS: DMG installer
-
-File: `obs-multistream-stats-<version>-macos-universal.dmg` (Apple Silicon and Intel, macOS 13 or newer)
-
-1. Quit OBS Studio.
-2. Open the DMG and double-click **Install Multi-Stream Stats.pkg**.
-3. The package is not signed with an Apple Developer ID yet. If macOS says it **"cannot be opened"** or that **Apple could not verify** it:
-   open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway** next to the message about the package, and confirm. Then open the package again.
-4. Follow the steps. It installs for **your user account only** into
-   `~/Library/Application Support/obs-studio/plugins/obs-multistream-stats.plugin`. No administrator password is needed. That folder is the only place OBS Studio 33 loads plugins from on macOS, so there is no choice of location.
-5. Start OBS and open **Docks → Multi-Stream Statistics**.
-
-If you have several user accounts, install once per account that uses OBS.
-
-## macOS: manual ZIP
-
-File: `obs-multistream-stats-<version>-macos-universal-manual.zip`. It contains `obs-multistream-stats.plugin` (one universal bundle for Apple Silicon and Intel), `INSTALL.txt` and `LICENSE.txt`.
-
-1. Quit OBS Studio and open the ZIP (Finder extracts it).
-2. In Finder choose **Go → Go to Folder…** and enter `~/Library/Application Support/obs-studio/plugins`
-   (if `plugins` does not exist, open `~/Library/Application Support/obs-studio` and create it).
-3. Copy **obs-multistream-stats.plugin** into it (replace an older copy if asked).
-4. Because the bundle is not signed with an Apple Developer ID yet, macOS may block it or OBS may not load it while it carries the download "quarantine" flag. Remove the flag once in Terminal:
-   ```
-   xattr -dr com.apple.quarantine ~/Library/Application\ Support/obs-studio/plugins/obs-multistream-stats.plugin
-   ```
-5. Start OBS and open **Docks → Multi-Stream Statistics**.
-
-Do not use `/Library/Application Support/obs-studio/plugins` (without `~`): OBS 33 treats it as a legacy location and does not load this plugin from it on Apple Silicon.
-
-Custom folder (advanced): OBS also loads plugins from `OBS_PLUGINS_PATH`, but only when OBS is started from Terminal:
-`OBS_PLUGINS_PATH=/path/to/folder /Applications/OBS.app/Contents/MacOS/OBS` with `/path/to/folder/obs-multistream-stats.plugin`.
-macOS has no "portable OBS" plugin folder.
-
 ## Linux: .deb (Ubuntu 26.04)
 
-File: `obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb`. Requires OBS Studio 33 from the official OBS PPA (`ppa:obsproject/obs-studio`).
+File: `obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb` (x86_64). Tested on Ubuntu 26.04.
+
+**Requirements:** OBS Studio **33.x** from the official OBS PPA. If OBS is not installed yet:
+
+```
+sudo add-apt-repository ppa:obsproject/obs-studio
+sudo apt install obs-studio
+```
+
+**Install** (close OBS first):
 
 ```
 sudo apt install ./obs-multistream-stats_<version>_ubuntu-26.04_amd64.deb
 ```
 
-It installs system-wide into OBS's own plugin folders (`/usr/lib/x86_64-linux-gnu/obs-modules/plugins/` and `/usr/share/obs/obs-modules/plugins/obs-multistream-stats/`) and requires `obs-studio` 33.x, so it cannot be installed next to an incompatible OBS.
-Remove it with `sudo apt remove obs-multistream-stats`.
+- The package depends on `obs-studio (>= 33.0.0)` and `obs-studio (<< 34)`, so it cannot be installed next to an incompatible OBS. It also depends on the Qt 6 libraries (Core, Gui, Widgets) and the C/C++ runtime that the plugin links; apt installs any that are missing.
+- It installs system-wide into OBS's own plugin folders: `/usr/lib/x86_64-linux-gnu/obs-modules/plugins/obs-multistream-stats.so` and `/usr/share/obs/obs-modules/plugins/obs-multistream-stats/`.
+- Then start OBS and open **Docks → Multi-Stream Statistics** ([check the installation](#check-the-installation)).
+
+**Remove:** `sudo apt remove obs-multistream-stats`. Your plugin settings (`~/.config/obs-studio/plugin_config/obs-multistream-stats/`) are kept.
 
 ## Linux: manual archive
 
-File: `obs-multistream-stats-<version>-linux-x86_64-manual.tar.xz`. Installs for the current user, without root.
+File: `obs-multistream-stats-<version>-linux-x86_64-manual.tar.xz`. Installs for the current user, without root. The `INSTALL.txt` inside the archive has the same steps.
+
+**Requirements:**
+- a native OBS Studio **33.x** (not the Flatpak). The plugin is built against the OBS 33 package from the official OBS PPA, which provides `libobs.so.30`;
+- Qt **6.10** or newer (Core, Gui, Widgets);
+- a C library at least as new as Ubuntu 26.04's (the minimum glibc version is printed in the archive's `INSTALL.txt`).
+
+It is tested on Ubuntu 26.04 only; other distributions are not tested ([details](COMPATIBILITY.md#other-linux-distributions)).
+
+**Install** (close OBS first):
 
 ```
 tar -xJf obs-multistream-stats-<version>-linux-x86_64-manual.tar.xz
@@ -132,12 +116,17 @@ cp -r obs-multistream-stats "${XDG_DATA_HOME:-$HOME/.local/share}/obs-studio/plu
 
 Result: `~/.local/share/obs-studio/plugins/obs-multistream-stats/obs-multistream-stats.so` plus its `data/` folder.
 
-- It needs a native OBS Studio **33.x** (the binary links against `libobs.so.33`), Qt 6.10 or newer, and a C library at least as new as Ubuntu 26.04's. It is tested on Ubuntu 26.04 only; see [COMPATIBILITY.md](COMPATIBILITY.md).
-- OBS started with `--portable` ignores `~/.local/share/obs-studio/plugins`. For a portable or self-built OBS, put the folder anywhere and start OBS with `OBS_PLUGINS_PATH=/that/folder obs`.
+**Remove:** `rm -r ~/.local/share/obs-studio/plugins/obs-multistream-stats`. Your plugin settings are kept.
+
+OBS started with `--portable` ignores `~/.local/share/obs-studio/plugins`. For a portable or self-built OBS, put the folder anywhere and start OBS with `OBS_PLUGINS_PATH=/that/folder obs`.
 
 ## Flatpak
 
 OBS Studio installed from Flathub (`com.obsproject.Studio`) is **not supported** by these packages. Flatpak OBS runs in a sandbox with its own Qt and system libraries; a plugin built for the system OBS is not guaranteed to be compatible, and copying it into the sandbox's folders is not a supported installation. See [COMPATIBILITY.md](COMPATIBILITY.md#flatpak).
+
+## macOS
+
+No macOS package is available. macOS support is planned for a future release. Development and compatibility testing are not yet complete. No release date is currently available.
 
 ## Check the installation
 
@@ -151,9 +140,8 @@ OBS Studio installed from Flathub (`com.obsproject.Studio`) is **not supported**
 ## Upgrading
 
 - **Windows installer:** run the new installer and choose the same OBS. It shows "Upgrade <old> to <new>", replaces the plugin files (including a leftover `.pdb` from manual installs) and keeps your settings.
-- **macOS installer:** run the new package; it replaces the old bundle and keeps your settings.
 - **Ubuntu .deb:** `sudo apt install ./<new>.deb`.
-- **Manual installs:** close OBS, delete the old `obs-multistream-stats` folder (or `.plugin` bundle), copy the new one.
+- **Manual installs:** close OBS, delete the old `obs-multistream-stats` folder, copy the new one.
 
 ## Uninstalling
 
@@ -161,7 +149,6 @@ OBS Studio installed from Flathub (`com.obsproject.Studio`) is **not supported**
 |---|---|
 | Windows installer | **Settings → Apps → Installed apps → Multi-Stream Stats → Uninstall** (close OBS first) |
 | Windows ZIP | delete `...\plugins\obs-multistream-stats\` |
-| macOS installer or ZIP | move `~/Library/Application Support/obs-studio/plugins/obs-multistream-stats.plugin` to the Trash |
 | Ubuntu .deb | `sudo apt remove obs-multistream-stats` |
 | Linux archive | `rm -r ~/.local/share/obs-studio/plugins/obs-multistream-stats` |
 
@@ -171,7 +158,6 @@ The plugin's own settings file is kept. To remove it too, delete the `plugin_con
 |---|---|
 | Windows, standard | `%APPDATA%\obs-studio\plugin_config\obs-multistream-stats\` |
 | Windows, portable | `<OBS folder>\config\obs-studio\plugin_config\obs-multistream-stats\` |
-| macOS | `~/Library/Application Support/obs-studio/plugin_config/obs-multistream-stats/` |
 | Linux | `~/.config/obs-studio/plugin_config/obs-multistream-stats/` |
 
 ## Troubleshooting
@@ -183,16 +169,14 @@ The plugin's own settings file is kept. To remove it too, delete the `plugin_con
    - A folder nested one level too deep is a common mistake (`plugins\obs-multistream-stats\obs-multistream-stats\...`).
 3. Open the current log (Help → Log Files) and search for `multistream-stats`:
    - `loaded version …` appears: the plugin works; open it from the Docks menu. If the dock is off-screen, use **Docks → Reset Docks**.
-   - `Module '…obs-multistream-stats…' not loaded`, preceded by `LoadLibrary failed for '…'` (Windows) or `os_dlopen(…)` (macOS, Linux): the plugin file was found but could not be loaded. Usually the build does not match your OBS: a different OBS major version, a Linux system without the required libraries, or on Windows an ARM64 OBS (this build is x64 only).
+   - `Module '…obs-multistream-stats…' not loaded`, preceded by `LoadLibrary failed for '…'` (Windows) or `os_dlopen(…)` (Linux): the plugin file was found but could not be loaded. Usually the build does not match your OBS: a different OBS major version, a Linux system without the required libraries, or on Windows an ARM64 OBS (this build is x64 only).
    - `Module '…obs-multistream-stats…' compiled with newer libobs …`: your OBS is older than the version the plugin was built for. Update OBS.
    - Nothing at all: OBS did not find the plugin; check the folder again.
 4. Tools → Plugin Manager: if the plugin is listed but disabled, enable it and restart OBS.
 
-**macOS: "cannot be opened" / "could not verify".** See step 3 of the [DMG installer](#macos-dmg-installer) or step 4 of the [manual ZIP](#macos-manual-zip).
-
 **Windows: SmartScreen warning.** The installer is not code-signed yet; click **More info → Run anyway** if you downloaded it from this project's Releases page.
 
-**Linux: the plugin does not load.** Run `ldd ~/.local/share/obs-studio/plugins/obs-multistream-stats/obs-multistream-stats.so` (or the `/usr/lib/...` path) and look for `not found`. A missing `libobs.so.33` means your OBS is not version 33.x.
+**Linux: the plugin does not load.** Run `ldd ~/.local/share/obs-studio/plugins/obs-multistream-stats/obs-multistream-stats.so` (or the `/usr/lib/...` path) and look for `not found`. A missing `libobs` library means your OBS differs from the OBS 33 package this build was made for (Ubuntu 26.04, official OBS PPA).
 
 **Values show N/A.** That is deliberate when a value cannot be measured; hover it to see why (for example: not supported by this output type, or only available while streaming).
 

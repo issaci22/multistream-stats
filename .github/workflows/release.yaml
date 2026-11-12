@@ -8,9 +8,15 @@
 #  - Assets are the exact files of the reviewed build run (same commit as the tag), not a rebuild.
 #  - Windows assets are only accepted if the DLL inside them is listed for this version in
 #    packaging/windows/known-good-payloads.json (tested end to end).
+#  - Only an allowlisted set of files can end up in the draft (see "Check the asset list").
+#
+# Release assets: Windows x64 installer (.exe) and manual ZIP, Linux x86_64 .deb (Ubuntu 26.04) and
+# manual .tar.xz, a source archive, SHA256SUMS.txt and the notes from docs/release-notes/<version>.md.
+# macOS is postponed: its packages are attached only with include_macos (a later release, from a
+# "Build and test" run that was started with include_macos). 1.1.0 has no macOS assets.
 #
 # Typical use for 1.1.0 (Windows assets built locally from the pinned, tested DLL):
-#   1. mode=create-draft, windows_assets=attach-manually
+#   1. mode=create-draft, windows_assets=attach-manually  (Linux packages + source archive)
 #   2. upload the two Windows files to the draft (gh release upload <tag> <files>)
 #   3. mode=refresh-checksums  (verifies the Windows ZIP pin, rewrites SHA256SUMS.txt and the notes)
 #   4. review the draft, then publish it by hand.
@@ -35,6 +41,10 @@ on:
         type: choice
         options: [attach-manually, from-build-run]
         default: attach-manually
+      include_macos:
+        description: Attach macOS packages (postponed; needs a Build and test run started with include_macos)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -94,15 +104,18 @@ jobs:
           NAME: ${{ steps.pre.outputs.name }}
           VERSION: ${{ steps.pre.outputs.version }}
           WINDOWS_ASSETS: ${{ inputs.windows_assets }}
+          INCLUDE_MACOS: ${{ inputs.include_macos }}
         run: |
           set -euo pipefail
-          (cd ci/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
           (cd ci/linux-packages && sha256sum -c SHA256SUMS-linux.txt)
           mkdir release
-          cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64.dmg ci/macos-packages/"$NAME-$VERSION"-macos-arm64-manual.zip release/
-          cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64-dSYMs.zip release/ 2>/dev/null || true
-          cp ci/linux-packages/"${NAME}_${VERSION}"_ubuntu-26.04_amd64.deb ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-manual.tar.xz \
-             ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-debug-symbols.tar.xz release/
+          # Linux: the .deb and the manual archive. The debug-symbols archive stays a CI artifact.
+          cp ci/linux-packages/"${NAME}_${VERSION}"_ubuntu-26.04_amd64.deb ci/linux-packages/"$NAME-$VERSION"-linux-x86_64-manual.tar.xz release/
+          if [[ "$INCLUDE_MACOS" == true ]]; then
+            (cd ci/macos-packages && sha256sum -c SHA256SUMS-macos.txt)
+            cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64.dmg ci/macos-packages/"$NAME-$VERSION"-macos-arm64-manual.zip release/
+            cp ci/macos-packages/"$NAME-$VERSION"-macos-arm64-dSYMs.zip release/ 2>/dev/null || true
+          fi
           if [[ "$WINDOWS_ASSETS" == from-build-run ]]; then
             (cd ci/windows-packages && sha256sum -c SHA256SUMS-windows.txt)
             cp ci/windows-packages/"$NAME-$VERSION"-windows-x64-installer.exe ci/windows-packages/"$NAME-$VERSION"-windows-x64-manual.zip release/
@@ -116,6 +129,35 @@ jobs:
           [[ "$(gh release view "$TAG" --json isDraft -q .isDraft)" == "true" ]] || { echo "::error::$TAG is not a draft release"; exit 1; }
           gh release download "$TAG" --dir release
           rm -f release/SHA256SUMS.txt
+
+      - name: Check the asset list
+        env:
+          NAME: ${{ steps.pre.outputs.name }}
+          VERSION: ${{ steps.pre.outputs.version }}
+          MODE: ${{ inputs.mode }}
+          WINDOWS_ASSETS: ${{ inputs.windows_assets }}
+          INCLUDE_MACOS: ${{ inputs.include_macos }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          base="$NAME-$VERSION"
+          win=("$base-windows-x64-installer.exe" "$base-windows-x64-manual.zip")
+          required=("${NAME}_${VERSION}_ubuntu-26.04_amd64.deb" "$base-linux-x86_64-manual.tar.xz" "$base-source.tar.xz")
+          allowed=("${required[@]}" "${win[@]}")
+          # Windows is attached by hand after create-draft (attach-manually); from then on it is required.
+          if [[ "$MODE" == refresh-checksums || "$WINDOWS_ASSETS" == from-build-run ]]; then required+=("${win[@]}"); fi
+          if [[ "$INCLUDE_MACOS" == true ]]; then
+            required+=("$base-macos-arm64.dmg" "$base-macos-arm64-manual.zip")
+            allowed+=("$base-macos-arm64.dmg" "$base-macos-arm64-manual.zip" "$base-macos-arm64-dSYMs.zip")
+          fi
+          for f in release/*; do
+            n=${f#release/}
+            printf '%s\n' "${allowed[@]}" | grep -qxF -- "$n" || { echo "::error::not an allowed release asset: $n"; exit 1; }
+          done
+          for n in "${required[@]}"; do
+            test -f "release/$n" || { echo "::error::missing release asset: $n"; exit 1; }
+          done
+          echo "Release assets:"; ls -l release
 
       - name: Verify Windows assets against the tested payload
         env:
