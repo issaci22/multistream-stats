@@ -230,6 +230,24 @@ jobs:
           if ((Get-FileHash $state).Hash -ne $before) { throw 'uninstall changed or removed the plugin settings' }
           'standard installer tests passed'
 
+      - name: Publish failure details as annotations (job logs need a sign-in; annotations are public)
+        if: failure()
+        shell: bash
+        run: |
+          report() { local m; m=$(tail -c 3000 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
+          shopt -s nullglob
+          n=0
+          for f in results/*/summary.txt results/*/obs-stderr.txt results/*.log results/*.txt; do
+            [ -s "$f" ] || continue
+            [ "$n" -lt 8 ] || break
+            report error "$f" "$f"; n=$((n + 1))
+          done
+          for f in results/*/obs.log; do
+            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
+          done
+          [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -249,13 +267,23 @@ jobs:
       - name: Install OBS Studio 33 (official PPA) and build tools
         run: |
           mkdir -p ci-logs
+          # Job logs need a sign-in to read; annotations are public. Report apt's own output there.
+          report() { local m; m=$(tail -c 3500 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
           sudo add-apt-repository --yes ppa:obsproject/obs-studio
+          # Always take obs-studio from the official OBS PPA (Ubuntu's own archive has an older major version).
+          printf 'Package: obs-studio\nPin: release o=LP-PPA-obsproject-obs-studio\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/obs-studio-ppa
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev libgles2-mesa-dev \
-            libsimde-dev build-essential cmake ninja-build pkg-config jq lintian file dpkg-dev
+          apt-cache policy obs-studio > ci-logs/linux-obs-policy.txt 2>&1
+          report notice 'apt policy obs-studio' ci-logs/linux-obs-policy.txt
+          if ! sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev libgles2-mesa-dev \
+              libsimde-dev build-essential cmake ninja-build pkg-config jq lintian file dpkg-dev > ci-logs/linux-apt-install.log 2>&1; then
+            report error 'apt-get install failed' ci-logs/linux-apt-install.log; exit 1
+          fi
           v=$(dpkg-query -W -f='${Version}' obs-studio); v=${v#*:}
           echo "obs-studio $v" | tee ci-logs/linux-obs-package.txt
-          dpkg --compare-versions "$v" ge 33 && dpkg --compare-versions "$v" lt 34 || { echo "::error::OBS Studio $v is not 33.x"; exit 1; }
+          if ! { dpkg --compare-versions "$v" ge 33 && dpkg --compare-versions "$v" lt 34; }; then
+            report error "OBS Studio $v is not 33.x (apt policy)" ci-logs/linux-obs-policy.txt; exit 1
+          fi
           dpkg -L obs-studio | grep -E 'obs-modules|/cmake/(libobs|obs-frontend-api)/|include/obs/obs-(module|frontend-api)\.h' | tee ci-logs/linux-obs-layout.txt
           dpkg-query -W 'libqt6core6*' qt6-base-dev | tee -a ci-logs/linux-obs-package.txt
 
@@ -327,9 +355,15 @@ jobs:
 
       - name: Install OBS Studio 33 (official PPA), Xvfb and PowerShell
         run: |
+          report() { local m; m=$(tail -c 3500 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
           sudo add-apt-repository --yes ppa:obsproject/obs-studio
+          printf 'Package: obs-studio\nPin: release o=LP-PPA-obsproject-obs-studio\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/obs-studio-ppa
           sudo apt-get update
-          sudo apt-get install -y obs-studio xvfb xauth mesa-utils libgl1-mesa-dri dbus-x11
+          if ! sudo apt-get install -y obs-studio xvfb xauth mesa-utils libgl1-mesa-dri dbus-x11 > "$RUNNER_TEMP/apt-install.log" 2>&1; then
+            report error 'apt-get install failed' "$RUNNER_TEMP/apt-install.log"; exit 1
+          fi
+          v=$(dpkg-query -W -f='${Version}' obs-studio); echo "obs-studio $v"
+          dpkg --compare-versions "${v#*:}" ge 33 || { echo "::error::OBS Studio $v is not 33.x"; exit 1; }
           command -v pwsh || sudo snap install powershell --classic
           (cd pkg && sha256sum -c SHA256SUMS-linux.txt)
 
@@ -364,6 +398,24 @@ jobs:
           cp -r "$RUNNER_TEMP/tar/obs-multistream-stats" "$XDG_DATA_HOME/obs-studio/plugins/"
           run -Out results/linux-tar -ExpectVersion "$version" -LeakBaseline "$baseline"
           echo "Linux package tests passed"
+
+      - name: Publish failure details as annotations (job logs need a sign-in; annotations are public)
+        if: failure()
+        shell: bash
+        run: |
+          report() { local m; m=$(tail -c 3000 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
+          shopt -s nullglob
+          n=0
+          for f in results/*/summary.txt results/*/obs-stderr.txt results/*.log results/*.txt; do
+            [ -s "$f" ] || continue
+            [ "$n" -lt 8 ] || break
+            report error "$f" "$f"; n=$((n + 1))
+          done
+          for f in results/*/obs.log; do
+            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
+          done
+          [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
 
       - name: Upload results
         if: always()
@@ -532,6 +584,24 @@ jobs:
           xattr -dr com.apple.quarantine "$plugins/obs-multistream-stats.plugin"
           run -Out results/macos-zip -ExpectVersion "$version" -LeakBaseline "$baseline"
           echo "macOS package tests passed (${{ matrix.arch }})"
+
+      - name: Publish failure details as annotations (job logs need a sign-in; annotations are public)
+        if: failure()
+        shell: bash
+        run: |
+          report() { local m; m=$(tail -c 3000 "$3"); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::$1 title=$2::$m"; }
+          shopt -s nullglob
+          n=0
+          for f in results/*/summary.txt results/*/obs-stderr.txt results/*.log results/*.txt; do
+            [ -s "$f" ] || continue
+            [ "$n" -lt 8 ] || break
+            report error "$f" "$f"; n=$((n + 1))
+          done
+          for f in results/*/obs.log; do
+            grep -iE 'multistream|error|fail|unable|could not' "$f" | tail -n 40 > "$RUNNER_TEMP/obs-excerpt.txt" || true
+            [ -s "$RUNNER_TEMP/obs-excerpt.txt" ] && [ "$n" -lt 9 ] && { report error "$f (excerpt)" "$RUNNER_TEMP/obs-excerpt.txt"; n=$((n + 1)); }
+          done
+          [ "$n" -gt 0 ] || echo "::error::The test step failed before writing any result file."
 
       - name: Upload results
         if: always()
