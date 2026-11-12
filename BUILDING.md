@@ -72,7 +72,7 @@ All three scripts verify their output after packaging (extract again, compare ev
 - `windows`, `macos`, `linux`: build, unit tests, dependency audit, packages, logs (kept 30 days);
 - `windows-smoke`: the installer against the official OBS 33.0.1 portable ZIP and standard installer (silent install/refusal/reinstall/uninstall, settings kept, plugin loads);
 - `linux-smoke`: the .deb and the .tar.xz against OBS 33 from the PPA under Xvfb;
-- `macos-smoke` (on `main`, manual runs and releases, to save macOS minutes): the DMG/PKG and the ZIP against the official OBS 33.0.1 DMGs on Apple Silicon and Intel runners;
+- `macos-smoke` (every push and pull request; manual runs can switch it off): the DMG/PKG and the ZIP against the official OBS 33.0.1 DMGs on Apple Silicon and Intel runners;
 - `checksums`: verifies every package's checksum list.
 
 The official OBS downloads and Inno Setup used by CI are pinned by SHA-256 (Inno Setup's Authenticode signer is checked too). Third-party actions are pinned by commit SHA; Dependabot proposes updates.

@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       macos_smoke:
-        description: Run the macOS runtime smoke tests (slow, macOS minutes count 10x on private repositories)
+        description: Run the macOS runtime smoke tests (Apple Silicon and Intel)
         type: boolean
         default: true
   workflow_call:
@@ -505,7 +505,9 @@ jobs:
   macos-smoke:
     name: macOS ${{ matrix.arch }} - installer and OBS loading tests
     needs: macos
-    if: github.event_name == 'workflow_call' || github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.macos_smoke)
+    # Runs on every push and pull request (standard runners are free on public repositories);
+    # manual runs can switch it off.
+    if: github.event_name != 'workflow_dispatch' || inputs.macos_smoke
     strategy:
       fail-fast: false
       matrix:
